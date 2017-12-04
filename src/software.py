@@ -16,7 +16,7 @@ class Process:
     # integer  | pid .... process id given by the system
     # function | func ... function to execute next by the cpu
     # string   | name ... name of the process
-    def __init__( self, pid, func, name, user="System" ):
+    def __init__( self, pid, func, name, user="System", params=[] ):
         # Process ID
         self.pid = pid
         # Function to execute next, None to terminate process
@@ -25,15 +25,24 @@ class Process:
         self.name = name
         # Owner of the process
         self.user = user
+        # Additional Parameters
+        self.params = params
+
+    # Kill this process
+    # Can be called remotely or returned from an proc loop
+    def kill( self ):
+        self.func = None
+        return None
 
 # A program is a process that is actively controlled by a player
 class Program( Process ):
 
-    def __init__( self, pid, func, name, user, origin )
+    def __init__( self, pid, func, name, user, origin, params=[] )
         # Pass parent args along
-        super( ).__init__( pid, func, name, user )
+        super( ).__init__( pid, func, name, user, params )
 
         # Stores the location of the program to send/recv data to/from
+        # Basically the stdin for this program
         # Usage:
         # tuple | origin = ( ip, pid )
         # > string  | ip .... IP address of the host running the program that created this one
@@ -41,12 +50,14 @@ class Program( Process ):
         #
         # Example:
         # Send/recv data to/from a pid on a remote host
-        # self.origin = ( "188.32.172.4", 4832 )
+        # self.origin = ( hostRef, 4832 )
         # Send/recv data to/from a pid on this host
-        # self.origin = ( "localhost", 5123 )
-        # self.origin = ( "127.0.0.1", 3268 )
+        # self.origin = ( thisHostRef, 5123 )
         self.origin = origin
-
+        # Same contents as self.origin
+        # Stores the host and process to which data is sent
+        # Basically the stdout for this program
+        self.destin = None
 
         ### Storage for the Readline utility ###
         # Prompt for the readline
@@ -62,29 +73,44 @@ class Program( Process ):
         self.rl_nfunc = None
         # Readline abort (ctrl+c) function
         self.rl_afunc = None
+        # Hide characters or not
+        self.rl_secure = False
+        # Strip leading / trailing whitespace
+        self.rl_strip = True
 
-    # Store keystroke sent from the user
+    # Store keystroke sent from a different proccess
     #
     # string | data ... a single keystroke
     def input( self, data ):
-        # Sending data is handled here as apposed to within the SSH prog
-        # To avoid unfairness with the host update order
-        self.rl_buff.append( data )
+        # See if we need to forward the data or not
+        if self.destin is None:
+            # This program is not attached, add it to the buffer
+            self.rl_buff.append( data )
+        else:
+            # Forward data to process
+            if not self.destin[0].input( self.destin[1], data ):
+                # If the destination process does not exist, close connection
+                self.destin = None
+
+    # Send data to a different process
+    def output( self, data ):
+         return self.origin[0].output( self.origin[1], data )
 
     # Use readline as follows to request input for the next function
     # Usage:
     # function | nfunc .... function to call after readline returns
-    # function | afunc .... function to call if ctrl+c is pressed (Disabled by default)
     # string   | prompt ... prompt to display to the user
+    # function | afunc .... function to call if ctrl+c is pressed
     # boolean  | secure ... if true, do not echo user input
     # boolean  | purge .... discard any existing data in the buffer
+    # boolean  | strip .... strip leading and trailing text
     #
     # Example:
-    #     return sh.readline( myNextFunc, ... )
+    #     return self.readline( myNextFunc, ... )
     #
-    # def myNextFunc( sy, sh ):
-    #     print( sh.rl_line )
-    def readline( self, nfunc, afunc=None, prompt="?", secure=False, purge=True ):
+    # def myNextFunc( host ):
+    #     print( self.rl_line )
+    def readline( self, nfunc, prompt="?", afunc=None, secure=False, purge=True, strip=True ):
         # Set input / output
         self.rl_line = ""
         if purge: del self.buff[:]
@@ -94,17 +120,20 @@ class Program( Process ):
         # Set additional params
         self.rl_prompt = prompt
         self.rl_secure = secure
+        self.rl_strip = strip
         # Return the loop
         return self._readline_loop
 
     # Private, do not call
-    def _readline_loop( self, host ):
+    def readline_loop( self, host ):
         # Process the entire buff
         while self.rl_buff:
             # Pop the first char from the buff
             key = self.rl_buff.pop( )
             # Check if end of user input
             if key.startswith( "\r" ) or key.startswith( "\n" ):
+                # Strip whitespace from text
+                if self.rl_strip: self.rl_line.strip( )
                 return self.rl_nfunc
             # Handle user interrupts
             elif key == "^C":
@@ -122,15 +151,36 @@ class Program( Process ):
             elif len( self.rl_line ) < 256:
                 self.rl_line += key
                 self.rl_cpos += 1
-        return self._readline_loop;
+        return self._readline_loop
+
+    # Recursively kill this program and all it's children
+    # Can be called remotely or returned from an prog loop
+    # Extend this class with any cleanup code you might need
+    # TIP: Set this as your rl_afunc, if want ctrl+c to kill
+    # the program.
+    def kill( self ):
+        # Tell our child to kill itself
+        if self.destin is not None:
+            self.destin[0].kill( self.destin[1] )
+        # Call parent function to terminate self
+        return super( ).method( )
+
+    # Send message to client
+    # Message is sent after delay has elapsed
+    def printl( self, msg, delay=0 ):
+        self.origin[0].output( self.origin[1], msg, delay )
+
+    # Send message to client followed by a newline
+    def println( self, msg="", delay=0 ):
+        self.printl( msg + "\r\n", delay )
 
 # The command interpreting shell program
 # Extend this to implement unique shells
 class Shell( Program ):
 
-    def __init__( self, pid, user, origin ):
+    def __init__( self, pid, user, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( pid, self.shell, "shell", user, origin )
+        super( ).__init__( pid, self.shell, "shell", user, origin, params )
 
         # The prompt for the command line
         self.sh_prompt = "@"
@@ -157,9 +207,40 @@ class Shell( Program ):
 
 class SSH( Program ):
 
-    def __init__( self, pid, func, name, user, origin ):
+    def __init__( self, pid, func, name, user, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( pid, func, name, user, origin )
+        super( ).__init__( pid, func, name, user, origin, params )
 
-    # Override the input function to reroute the data to a remote host
-    def input( self, data ):
+    def ssh( self, host ):
+        # Was the host defined as an arg?
+        if self.params:
+            # Set the readline to the host
+            self.rl_line = self.params[0]
+            # Return the resolve function
+            return self.ssh_resolve
+
+        return self.readline( self.ssh_resolve, "Remote host IP? " )
+
+    def ssh_resolve( self, host ):
+        # Resolve the remote host form IP
+        dhost = host.resolve_host( self.rl_line )
+        # Check if this is a real host
+        if dhost is not None:
+            # Get a free process id from that host
+            npid = dhost.get_npid( )
+            # Start a shell on the remote host
+            dhost.start_process( Shell( npid, self.user, ( host, self.pid ) ) )
+            # Forward any input to that shell
+            self.destin = ( dhost, npid )
+        else:
+            # Send an error message
+            self.println( "%%no response from host at " + self.rl_line )
+
+        return None
+
+# This is a special shell, used on Phreaknet gateways
+# It bridges the I/O of clients with the I/O of programs
+# DO NOT use this shell on any host except Phreaknet gateways
+class PhreakShell( Shell ):
+
+    def __init__( self ):

@@ -36,7 +36,7 @@ class Server:
             try:
                sock = self.termserv.accept( );
                cnew = Client( sock )
-               clients.append( cnew )
+               Server.clients.append( cnew )
                log.client( cnew, "Connected to Phreaknet" )
             except socket.timeout:
                break

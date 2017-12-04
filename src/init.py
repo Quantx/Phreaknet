@@ -14,6 +14,3 @@ import logging.py as log
 import networking.py as net
 import host.py
 import software.py as soft
-
-# Defined global variables here
-global conns
