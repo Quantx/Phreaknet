@@ -8,6 +8,8 @@
 
 import init.py
 
+import time
+
 # A process is any piece of software running on a host
 class Process:
 
@@ -27,6 +29,8 @@ class Process:
         self.user = user
         # Additional Parameters
         self.params = params
+        # Time started
+        self.started = time.time( )
 
     # Kill this process
     # Can be called remotely or returned from an proc loop
@@ -168,7 +172,9 @@ class Program( Process ):
     # Send message to client
     # Message is sent after delay has elapsed
     def printl( self, msg, delay=0 ):
-        self.origin[0].output( self.origin[1], msg, delay )
+        # data = ( message, print delay, network lag )
+        data = ( msg, delay, 0 )
+        self.origin[0].output( self.origin[1], data )
 
     # Send message to client followed by a newline
     def println( self, msg="", delay=0 ):
@@ -182,7 +188,7 @@ class Shell( Program ):
         # Pass parent args along
         super( ).__init__( pid, self.shell, "shell", user, origin, params )
 
-        # The prompt for the command line
+        # The default prompt for the command line
         self.sh_prompt = "@"
 
         # Default command table, commands common to all hosts
@@ -207,9 +213,9 @@ class Shell( Program ):
 
 class SSH( Program ):
 
-    def __init__( self, pid, func, name, user, origin, params=[] ):
+    def __init__( self, pid, user, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( pid, func, name, user, origin, params )
+        super( ).__init__( pid, self.ssh, "SSH", user, origin, params )
 
     def ssh( self, host ):
         # Was the host defined as an arg?
@@ -243,4 +249,37 @@ class SSH( Program ):
 # DO NOT use this shell on any host except Phreaknet gateways
 class PhreakShell( Shell ):
 
-    def __init__( self ):
+    def __init__( self, pid, user, origin, params=[] ):
+        super( ).__init__( pid, user, origin, params )
+        # Which conn is connected to this shell
+        # Used in place of origin, to bridge the connection
+        self.out_tty = None
+        # Stores a queue of (string, delay, lag) to be sent to clients
+        self.out_buff = []
+        # Stores the time the last message was sent
+        self.out_last = time.time( )
+
+    # Override parrent function
+    # Cache all incoming data until needed by the client
+    def output( self, data ):
+        self.out_last.append( data )
+
+    # Called by the conn update cycle to fetch any outgoing data
+    def get_output( self ):
+        # Confirm there's a conn connected to this shell
+        if self.out_buff and self.out_tty is not None:
+            # Check if the print delay has expired
+            b = self.out_buff.pop( )
+            # Check if it's time to print
+            if time.time( ) >= self.out_last > b[1] + b[2]:
+                # Update the next print statement with the current time
+                self.out_last = time.time( )
+                # Return data
+                return b[0]
+            # Not ready to print, keep waiting
+            else:
+                self.out_buff.push( b )
+        else:
+            # Pause print delay, no conn or no data
+            self.out_last = time.time( )
+            return ""

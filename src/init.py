@@ -3,14 +3,15 @@
 ####################################
 # Architect & Underground (c) 2017 #
 #                                  #
-# Imports all other files          #
+# Handles imports and dependancies #
 ####################################
 
-#####                                 #####
-###   CALL INIT.PY IN ALL OTHER FILES   ###
-#####                                 #####
+#####                             #####
+###   IMPORT INIT.PY IN ALL FILES   ###
+#####                             #####
 
 import logging.py as log
 import networking.py as net
-import host.py
+from host.py import *
 import software.py as soft
+import account.py as acct
