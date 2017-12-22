@@ -6,7 +6,7 @@
 # Shell and command processing     #
 ####################################
 
-import init.py
+from init.py import *
 
 import time
 
@@ -34,7 +34,7 @@ class Process:
 
     # Kill this process
     # Can be called remotely or returned from an proc loop
-    def kill( self ):
+    def kill( self, host=None ):
         self.func = None
         return None
 
@@ -73,6 +73,8 @@ class Program( Process ):
         self.rl_line = ""
         # Cursor position
         self.rl_cpos = 0
+        # Used by readchar, filters out all chars except...
+        self.rl_filter = ""
         # Readline next function
         self.rl_nfunc = None
         # Readline abort (ctrl+c) function
@@ -85,7 +87,7 @@ class Program( Process ):
     # Store keystroke sent from a different proccess
     #
     # string | data ... a single keystroke
-    def input( self, data ):
+    def stdin( self, data ):
         # See if we need to forward the data or not
         if self.destin is None:
             # This program is not attached, add it to the buffer
@@ -97,8 +99,8 @@ class Program( Process ):
                 self.destin = None
 
     # Send data to a different process
-    def output( self, data ):
-         return self.origin[0].output( self.origin[1], data )
+    def stdout( self, data ):
+         return self.origin[0].stdout( self.origin[1], data )
 
     # Use readline as follows to request input for the next function
     # Usage:
@@ -115,7 +117,7 @@ class Program( Process ):
     # def myNextFunc( host ):
     #     print( self.rl_line )
     def readline( self, nfunc, prompt="?", afunc=None, secure=False, purge=True, strip=True ):
-        # Set input / output
+        # Purge stdin / stdout
         self.rl_line = ""
         if purge: del self.buff[:]
         # Set functions
@@ -126,7 +128,7 @@ class Program( Process ):
         self.rl_secure = secure
         self.rl_strip = strip
         # Return the loop
-        return self._readline_loop
+        return self.readline_loop
 
     # Private, do not call
     def readline_loop( self, host ):
@@ -151,18 +153,61 @@ class Program( Process ):
             # Delete key pressed
             elif key == "BACKSPACE":
                 self.rl_line = self.rl_line[:self.rl_cpos] + self.rl_line[(self.rl_cpos + 1):]
-            # Add char to the line if enough room
-            elif len( self.rl_line ) < 256:
-                self.rl_line += key
-                self.rl_cpos += 1
-        return self._readline_loop
+            # Make sure they keypress is only one byte long
+            elif len( key ) == 1:
+                # Make sure that the output isn't too long
+                if len( self.rl_line ) < 100:
+                    # Check if we're in secure mode
+                    if self.rl_secure:
+                        # Echo a star
+                        self.printl( "*" )
+                    else:
+                        # Echo the key
+                        self.printl( key )
+                    # Add the key to the output
+                    self.rl_line += key
+                    self.rl_cpos += 1
+        return self.readline_loop
+
+    # Get exactly one char from the client
+    # function | nfunc .... the function to execute after a key is pressed
+    # string   | prompt ... the prompt to display to the client
+    # boolean  | purge .... discard existing input data in the buffer
+    def readchar( self, nfunc, prompt="?", filter="" purge=True ):
+        # Clear stdin / stdout
+        self.rl_buff = ""
+        if purge: del self.buff[:]
+        # Set filter chars
+        self.rl_filter = filter
+        # Set function
+        self.rl_nfunc = nfunc
+        # Set prompt
+        self.rl_prompt = prompt
+        # return the readchar loop
+        return self.readchar_loop
+
+    # Private, do not call
+    def readchar_loop( self, host ):
+        # Check if the buffer has data in it
+        if self.buff:
+            # Pop one keypress and store it in the output
+            key = self.buff.pop( )
+            # Filter out any incorrect key presses
+            if len( self.rl_filter ) > 0 and key not in self.rl_filter:
+                return self.readchar_loop
+            self.rl_line = key
+            # Return the next function
+            return self.rl_nfunc
+        else:
+            # Continue the loop
+            return self.readchar_loop
 
     # Recursively kill this program and all it's children
     # Can be called remotely or returned from an prog loop
     # Extend this class with any cleanup code you might need
     # TIP: Set this as your rl_afunc, if want ctrl+c to kill
     # the program.
-    def kill( self ):
+    def kill( self, host=None ):
         # Tell our child to kill itself
         if self.destin is not None:
             self.destin[0].kill( self.destin[1] )
@@ -174,7 +219,7 @@ class Program( Process ):
     def printl( self, msg, delay=0 ):
         # data = ( message, print delay, network lag )
         data = ( msg, delay, 0 )
-        self.origin[0].output( self.origin[1], data )
+        self.origin[0].stdout( self.origin[1], data )
 
     # Send message to client followed by a newline
     def println( self, msg="", delay=0 ):
@@ -200,7 +245,7 @@ class Shell( Program ):
         #
         # "myCmd" : { fn : myCmdFunc, priv : <0-2>, help : "How 2 Use" },
         self.sh_ctbl = {
-            "exit" : { fn : None, priv : 0, help : "Terminate connection to thi$
+            "exit" : { fn : self.kill, priv : 0, help : "Terminate connection to thi$
         }
 
     # The call to start the command processor
@@ -243,43 +288,3 @@ class SSH( Program ):
             self.println( "%%no response from host at " + self.rl_line )
 
         return None
-
-# This is a special shell, used on Phreaknet gateways
-# It bridges the I/O of clients with the I/O of programs
-# DO NOT use this shell on any host except Phreaknet gateways
-class PhreakShell( Shell ):
-
-    def __init__( self, pid, user, origin, params=[] ):
-        super( ).__init__( pid, user, origin, params )
-        # Which conn is connected to this shell
-        # Used in place of origin, to bridge the connection
-        self.out_tty = None
-        # Stores a queue of (string, delay, lag) to be sent to clients
-        self.out_buff = []
-        # Stores the time the last message was sent
-        self.out_last = time.time( )
-
-    # Override parrent function
-    # Cache all incoming data until needed by the client
-    def output( self, data ):
-        self.out_last.append( data )
-
-    # Called by the conn update cycle to fetch any outgoing data
-    def get_output( self ):
-        # Confirm there's a conn connected to this shell
-        if self.out_buff and self.out_tty is not None:
-            # Check if the print delay has expired
-            b = self.out_buff.pop( )
-            # Check if it's time to print
-            if time.time( ) >= self.out_last > b[1] + b[2]:
-                # Update the next print statement with the current time
-                self.out_last = time.time( )
-                # Return data
-                return b[0]
-            # Not ready to print, keep waiting
-            else:
-                self.out_buff.push( b )
-        else:
-            # Pause print delay, no conn or no data
-            self.out_last = time.time( )
-            return ""

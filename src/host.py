@@ -6,7 +6,7 @@
 # Virtual, in game, hosts          #
 ####################################
 
-import init.py
+from init.py import *
 
 class Host:
 
@@ -19,10 +19,23 @@ class Host:
                 return h
         return None
 
+    @staticmethod
+    def load( ):
+        # Abort unless hosts is empty
+        if Host.hosts: return False
+        # Get all files in the hst/ directory
+        hsts = next( os.walk( '/hst' ) )[2];
+        # Load each file
+        for hst in hsts:
+            if hst.endswith( '.hst' ):
+                with open( '/hst/' + hst, 'rb' ) as f:
+                    Account.accounts.append( pickle.load( f ) )
+        return True
+
     def __init__( self, name ):
         ### Host info ###
         # Name of the host
-        self.name = ""
+        self.hostname = ""
         # IP Address of the host, "" = no network
         self.ip = ""
         # Phone number of the host, "" = no landline
@@ -36,22 +49,36 @@ class Host:
         # Stores the next pid to assign
         self.npid = 0
 
+    # Serialize this host and save it to disk
+    def save( self ):
+        with open( '../hst/%s.hst' + self.hostname, 'wb+' ) as f:
+            pickle.dump( self, f )
+
     # Relay input to the respective PID
-    # Return if the process is still running
-    # Should only be called
-    def input( self, pid, data ):
+    # Returns if the process is still running
+    def stdin( self, pid, data ):
         for p in self.ptbl:
             if p.pid == pid:
-                 p.input( data )
+                 p.stdin( data )
                  return True
         return False
 
-    def output( self, pid, data ):
+    # Relay output to the respective PID
+    # Returns if the process is still running
+    def stdout( self, pid, data ):
         for p in self.ptbl:
             if p.pid == pid:
-                 p.output( data )
+                 p.stdout( data )
                  return True
         return False
+
+    # Get a reference for the following PID
+    # Returns None if no PID is found
+    def get_pid( self, pid ):
+        for p in self.ptbl:
+            if p.pid == pid:
+                 return p
+        return None
 
     # Return next available PID
     # Returns less then 0 if all PIDs are taken

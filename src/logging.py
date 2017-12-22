@@ -7,7 +7,7 @@
 ####################################
 
 # Import init.py
-import init.py
+from init.py import *
 
 # Dependancies
 import sys

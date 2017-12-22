@@ -7,7 +7,7 @@
 ####################################
 
 # Import init.py
-import init.py
+from init.py import *
 
 # Dependancies
 import socket
@@ -15,6 +15,8 @@ import socket
 # Set non-blocking mode for all sockets
 socket.setdefaulttimeout( 0 )
 
+# This server handles all external connections, NOT GAME PLAY
+# There should only be functions related to managing the conns here
 class Server:
 
     # DEV: FALSE = NORMAL_OPERATION, TRUE = DEV_MODE
@@ -22,7 +24,7 @@ class Server:
     def __init__( self, dev=False, ip="" ):
         # Specify the port to host on
         port = 23
-        if mode: port = 4200
+        if dev: port = 4200
 
         # Array of clients
         self.clients = []
@@ -51,8 +53,8 @@ class Server:
                break
 
     def __del__( self ):
+        # Ensure that we unbind the socket from the port
         self.termserv.close( )
-
 
 class Client:
 
@@ -62,9 +64,7 @@ class Client:
         # This client's account
         self.acct = "guest"
         # A reference to this user's gateway machine and shell process
-        self.gateway = [ None, 0 ]
-        # Store buffered input from user
-        self.buff = ""
+        self.gateway = None
         # Standard Terminal width and height
         self.width = 80
         self.height = 24
@@ -77,23 +77,25 @@ class Client:
         self.sock.send( b"\xFF\xFD\x22\xFF\xFB\x01\xFF\xFB\x03\xFF\xFD\x1F" )
 
     # Send data to the terminal
-    def output( self, msg ):
+    def stdout( self, msg ):
         # Encode the message if needed
         if not type( msg ) is bytes: msg = msg.encode( )
         self.sock.send( msg )
 
     # Buffer input from this client's socket
     # Return True if the client is still connected
-    def input( self ):
+    def stdin( self ):
         # Loop until we get a timeout exception
         while True:
             try:
                 data = self.sock.recv( 1024 )
+                # Check if this socket is still connected
                 if not data: return False
                 # Process IAC commands
                 data = self.iac( data )
                 # Append key press to buffer
-                self.gateway[0].input( self.gateway[1], data.decode( ) )
+                if self.gateways is not None:
+                    self.gateway[0].input( self.gateway[1], data.decode( ) )
             # No more data to recieve, timeout exception thrown
             except socket.timeout:
                 return True
