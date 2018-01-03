@@ -6,7 +6,7 @@
 # Client account data              #
 ####################################
 
-from init.py import *
+from init import *
 
 import time
 import hashlib
@@ -22,11 +22,11 @@ class Account:
         # Abort unless accounts is empty
         if Account.accounts: return False
         # Get all files in the usr/ directory
-        usrs = next( os.walk( '/usr' ) )[2];
+        usrs = next( os.walk( 'usr' ) )[2];
         # Load each file
         for usr in usrs:
             if usr.endswith( '.usr' ):
-                with open( '/usr/' + usr, 'rb' ) as f:
+                with open( 'usr/' + usr, 'rb' ) as f:
                     Account.accounts.append( pickle.load( f ) )
         return True
 
@@ -37,14 +37,16 @@ class Account:
         self.passsalt = os.urandom( 64 )
         self.password = self.hashpass( pwd )
         # Exact time this account was created
-        self.birth = time.time( )
+        self.first = time.time( )
+        # The IP adresses of this account's gateway
+        self.gateway = ""
 
         # Add us to the list of accounts
         Account.accounts.append( self )
 
     # Serialize this account and save it to disk
     def save( self ):
-        with open( '/usr/%s.usr' + self.username, 'wb+' ) as f:
+        with open( 'usr/%s.usr' + self.username, 'wb+' ) as f:
             pickle.dump( self, f )
 
     # Set a new password for this account

@@ -7,12 +7,13 @@
 ####################################
 
 #####                             #####
-###   IMPORT INIT.PY IN ALL FILES   ###
+###   IMPORT INIT IN ALL FILES   ###
 #####                             #####
 
-import logging.py as log
-import networking.py as net
-from host.py import *
-import software.py as soft
-import account.py as acct
-import phreaknet.py as phreak
+from logging import *
+from formating import *
+from account import *
+from host import *
+from software import *
+from phreaknet import *
+from networking import *

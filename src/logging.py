@@ -6,19 +6,25 @@
 # Log data on disk                 #
 ####################################
 
-# Import init.py
-from init.py import *
+# Import init
+from init import *
 
 # Dependancies
 import sys
 import time
 
 # Log a server action
-def server( msg ):
+def xlog( msg ):
     # Date/Time (24 hour) format: [MM/DD/YYYY|HH:MM:SS]
     sys.stdout.write( time.strftime( "[%m/%d/%Y|%H:%M:%S]" ) + msg + "\n" )
 
 # Log a client action
 # The clit varaible should be of type Client
-def client( cli, msg ):
-    server( "[" + cli.ip + ":" + cli.port + "|" + cli.acct + "]" + msg )
+def clog( cli, msg ):
+    # Assume this user isn't logged in
+    username = "Guest"
+    # Find this user's associated account
+    if cli.account is not None:
+        username = cli.account.username
+    # Log to server
+    xlog( "[" + cli.ip + ":" + str( cli.port ) + "|" + username + "]" + msg )

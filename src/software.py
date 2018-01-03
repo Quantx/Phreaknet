@@ -6,7 +6,7 @@
 # Shell and command processing     #
 ####################################
 
-from init.py import *
+from init import *
 
 import time
 
@@ -41,7 +41,7 @@ class Process:
 # A program is a process that is actively controlled by a player
 class Program( Process ):
 
-    def __init__( self, pid, func, name, user, origin, params=[] )
+    def __init__( self, pid, func, name, user, origin, params=[] ):
         # Pass parent args along
         super( ).__init__( pid, func, name, user, params )
 
@@ -54,9 +54,9 @@ class Program( Process ):
         #
         # Example:
         # Send/recv data to/from a pid on a remote host
-        # self.origin = ( hostRef, 4832 )
+        # self.origin = ( IPaddr, 4832 )
         # Send/recv data to/from a pid on this host
-        # self.origin = ( thisHostRef, 5123 )
+        # self.origin = ( IPaddr, 5123 )
         self.origin = origin
         # Same contents as self.origin
         # Stores the host and process to which data is sent
@@ -94,13 +94,13 @@ class Program( Process ):
             self.rl_buff.append( data )
         else:
             # Forward data to process
-            if not self.destin[0].input( self.destin[1], data ):
+            if not Host.resolve( self.destin[0] ).stdin( self.destin[1], data ):
                 # If the destination process does not exist, close connection
                 self.destin = None
 
     # Send data to a different process
-    def stdout( self, data ):
-         return self.origin[0].stdout( self.origin[1], data )
+    def stdout( self, data, delay=0 ):
+         Host.resolve( self.origin[0] ).stdout( self.origin[1], data )
 
     # Use readline as follows to request input for the next function
     # Usage:
@@ -119,7 +119,7 @@ class Program( Process ):
     def readline( self, nfunc, prompt="?", afunc=None, secure=False, purge=True, strip=True ):
         # Purge stdin / stdout
         self.rl_line = ""
-        if purge: del self.buff[:]
+        if purge: del self.rl_buff[:]
         # Set functions
         self.rl_nfunc = nfunc
         self.rl_afunc = afunc
@@ -127,6 +127,8 @@ class Program( Process ):
         self.rl_prompt = prompt
         self.rl_secure = secure
         self.rl_strip = strip
+        # Reset the cursor pointer
+        self.rl_cpos = 0
         # Return the loop
         return self.readline_loop
 
@@ -137,9 +139,10 @@ class Program( Process ):
             # Pop the first char from the buff
             key = self.rl_buff.pop( )
             # Check if end of user input
-            if key.startswith( "\r" ) or key.startswith( "\n" ):
+            if key.find( "\r" ) >= 0:
                 # Strip whitespace from text
                 if self.rl_strip: self.rl_line.strip( )
+                self.println( )
                 return self.rl_nfunc
             # Handle user interrupts
             elif key == "^C":
@@ -147,14 +150,16 @@ class Program( Process ):
                 if self.rl_afunc is not None:
                     return self.rl_afunc
             # Backspace key pressed
-            elif ( key == "\b" or key == "^H" ) and self.rl_cpos > 0:
+            elif ( key == "^H" or key == "\x7F" ) and self.rl_cpos > 0:
                 self.rl_line = self.rl_line[:(self.rl_cpos - 1)] + self.rl_line[self.rl_cpos:]
                 self.rl_cpos -= 1
+                # Output a backspace
+                self.printl( "\b \b" )
             # Delete key pressed
-            elif key == "BACKSPACE":
+            elif key == "[DELETE]":
                 self.rl_line = self.rl_line[:self.rl_cpos] + self.rl_line[(self.rl_cpos + 1):]
-            # Make sure they keypress is only one byte long
-            elif len( key ) == 1:
+            # Make sure they keypress is printable ASCII
+            elif len( key ) == 1 and ord( key ) > 31 and ord( key ) < 127:
                 # Make sure that the output isn't too long
                 if len( self.rl_line ) < 100:
                     # Check if we're in secure mode
@@ -173,10 +178,10 @@ class Program( Process ):
     # function | nfunc .... the function to execute after a key is pressed
     # string   | prompt ... the prompt to display to the client
     # boolean  | purge .... discard existing input data in the buffer
-    def readchar( self, nfunc, prompt="?", filter="" purge=True ):
+    def readchar( self, nfunc, prompt="?", filter="", purge=True ):
         # Clear stdin / stdout
         self.rl_buff = ""
-        if purge: del self.buff[:]
+        if purge: del self.rl_buff[:]
         # Set filter chars
         self.rl_filter = filter
         # Set function
@@ -189,9 +194,9 @@ class Program( Process ):
     # Private, do not call
     def readchar_loop( self, host ):
         # Check if the buffer has data in it
-        if self.buff:
+        if self.rl_buff:
             # Pop one keypress and store it in the output
-            key = self.buff.pop( )
+            key = self.rl_buff.pop( )
             # Filter out any incorrect key presses
             if len( self.rl_filter ) > 0 and key not in self.rl_filter:
                 return self.readchar_loop
@@ -210,16 +215,15 @@ class Program( Process ):
     def kill( self, host=None ):
         # Tell our child to kill itself
         if self.destin is not None:
-            self.destin[0].kill( self.destin[1] )
+            Host.resolve( self.destin[0] ).kill( self.destin[1] )
         # Call parent function to terminate self
-        return super( ).method( )
+        return super( ).kill( )
 
     # Send message to client
     # Message is sent after delay has elapsed
     def printl( self, msg, delay=0 ):
-        # data = ( message, print delay, network lag )
-        data = ( msg, delay, 0 )
-        self.origin[0].stdout( self.origin[1], data )
+        # message, print delay, network lag
+        self.stdout( ( msg, delay, 0 ) )
 
     # Send message to client followed by a newline
     def println( self, msg="", delay=0 ):
@@ -234,7 +238,7 @@ class Shell( Program ):
         super( ).__init__( pid, self.shell, "shell", user, origin, params )
 
         # The default prompt for the command line
-        self.sh_prompt = "@"
+        self.sh_prompt = ">"
 
         # Default command table, commands common to all hosts
         # function | fn   ... Function to call when command executed
@@ -245,12 +249,16 @@ class Shell( Program ):
         #
         # "myCmd" : { fn : myCmdFunc, priv : <0-2>, help : "How 2 Use" },
         self.sh_ctbl = {
-            "exit" : { fn : self.kill, priv : 0, help : "Terminate connection to thi$
+            "exit" : { "fn" : self.kill, "priv" : 0, "help" : "Terminate connection to this system" },
         }
 
     # The call to start the command processor
     def shell( self, host ):
-        return readline( self.shell_resolve, self.sh_prompt )
+        return self.readline( self.shell_resolve, self.sh_prompt )
+
+    # Resolve the command line input
+    def shell_resolve( self, host ):
+        pass
 
     # The run command
     def run( self, host ):
@@ -274,13 +282,13 @@ class SSH( Program ):
 
     def ssh_resolve( self, host ):
         # Resolve the remote host form IP
-        dhost = host.resolve_host( self.rl_line )
+        dhost = Host.resolve( self.rl_line )
         # Check if this is a real host
         if dhost is not None:
             # Get a free process id from that host
             npid = dhost.get_npid( )
             # Start a shell on the remote host
-            dhost.start_process( Shell( npid, self.user, ( host, self.pid ) ) )
+            dhost.start( Shell( npid, self.user, ( host, self.pid ) ) )
             # Forward any input to that shell
             self.destin = ( dhost, npid )
         else:
