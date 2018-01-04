@@ -15,8 +15,8 @@ class Host:
 
     # Resolve an IP address
     @staticmethod
-    def resolve( ip ):
-        # Eliminate a few bad IPs quickly
+    def find_ip( ip ):
+        # Handle some exceptions
         if not ip or ip == "localhost" or ip == "127.0.0.1": return None
         # Crosscheck against all hosts
         for h in Host.hosts:
@@ -28,7 +28,7 @@ class Host:
     # Request a new IP address
     # Change this when we implement ISPs
     @staticmethod
-    def request( ):
+    def new_ip( ):
         # Loop until we get an unused IP
         while True:
             # Generate a random IPv4 compatible IP
@@ -46,7 +46,7 @@ class Host:
         # Abort unless hosts is empty
         if Host.hosts: return False
         # Get all files in the hst/ directory
-        hsts = next( os.walk( 'hst' ) )[2];
+        hsts = next( os.walk( 'hst' ) )[2]
         # Load each file
         for hst in hsts:
             if hst.endswith( '.hst' ):
@@ -59,7 +59,7 @@ class Host:
         # Name of the host
         self.hostname = name
         # IP Address of the host, "" = no network
-        self.ip = Host.request( )
+        self.ip = Host.new_ip( )
         # Phone number of the host, "" = no landline
         self.phone = ""
         # Is this booted and running?
@@ -79,6 +79,8 @@ class Host:
         self.ptbl = []
         # Stores the next pid to assign
         self.npid = 0
+        # Stores the maximum number of processes this host can run
+        self.mpid = 65335
 
         # Add this host to the master host array
         Host.hosts.append( self )
@@ -90,18 +92,22 @@ class Host:
 
     # Relay input to the respective PID
     # Returns if the process is still running
-    def stdin( self, pid, data ):
+    def stdin( self, pid, data, echo ):
         for p in self.ptbl:
             if p.pid == pid:
-                 p.stdin( data )
+                 # Pass the data
+                 p.stdin( data, echo )
                  return True
         return False
 
     # Relay output to the respective PID
-    def stdout( self, pid, data ):
-        for p in self.ptbl:
-            if p.pid == pid:
-                 p.stdout( data )
+    def stdout( self, target, data, echo=False ):
+        # Resolve the destination host from the IP
+        dhost = self.resolve( target[0] )
+        if dhost is not None:
+            # Transmit the data
+            return dhost.stdin( target[1], data, echo )
+        return False
 
     # Get a reference for the following PID
     # Returns None if no PID is found
@@ -111,48 +117,53 @@ class Host:
                  return p
         return None
 
-    # Return next available PID
-    # Returns less then 0 if all PIDs are taken
-    def get_npid( self ):
-        # If no PID was found within 65535 attempts then self.ptbl is full
-        for _ in range( 65535 ):
+    # Start a new proc on this host
+    # Returns true if started successfully
+    def start( self, proc ):
+        ### Request a free PID ###
+        # If no PID was found within self.mpid attempts then self.ptbl is full
+        for _ in range( self.mpid ):
             # Increment self.npid from last time
             self.npid += 1
             # Make sure self.npid isn't greater then the highest PID
-            if self.npid >= 65335:
+            if self.npid >= self.mpid:
                 self.npid = 1
 
             for p in self.ptbl:
                 # Break if PID in use
                 if self.npid == p.pid: break
             else:
-                # PID is free, return it
-                return self.npid
-        # Full, return negative
-        return -1;
+                # PID is free, exit loop
+                break
+        else:
+            # ptbl is full cant start
+            return False
 
-    # Start a new process or program on the host
-    # Usage:
-    # <Process> | proc ... process to start
-    #
-    # Returns:
-    # True if the process was started
-    # False if the PID was taken
-    def start( self, proc ):
-        # Validate that the requested PID is free
-        for p in self.ptbl:
-            if p.pid == proc.pid:
-                return False
+        # Pass a reference to this host
+        proc.host = self
+        # Assign the process ID
+        proc.pid = self.npid
 
-        # Safe to start program
+        # Append program to our ptbl
         self.ptbl.append( proc )
+        # Program started
         return True
+
+    # Processes and Programs should use this as much as possible
+    def resolve( self, ip ):
+        # Is this a local IP?
+        if ip == "localhost" or ip == "127.0.0.1": return self
+        # Is this host running in safe mode?
+        if self.safemode: return None
+        # It must be an external IP
+        return Host.find_ip( ip )
 
     # Kill a process running on this host
     # Returns if sucessful or not
     def kill( self, pid ):
         for p in self.ptbl:
             if p.pid == pid:
+                # Kill the process and pass a reference
                 p.kill( )
                 return True
         return False
@@ -167,11 +178,11 @@ class Host:
             # Abort if nothing to update
             if not self.ptbl: return
             # Fetch next process
-            proc = self.ptbl.pop( )
+            proc = self.ptbl.pop( 0 )
             # Make sure process isn't attached
             if proc.destin is not None: continue
             # Execute process
-            proc.func = proc.func( self )
+            proc.func = proc.func( )
             # Increment cycle counter
             i += 1
             # Add running processes to the end of the queue

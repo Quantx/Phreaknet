@@ -203,11 +203,13 @@ class Client:
                 # Check if we're connected to a gateway machine
                 if self.gateway is not None:
                     # Resolve the gateway from this IP
-                    gatehost = Host.resolve( self.gateway[0] )
+                    gatehost = Host.find_ip( self.gateway[0] )
                     # Does the gateway still exist?
                     if gatehost is not None:
+                        # Formulate packet with no delay or lag
+                        msg = ( data, 0, -1 )
                         # Send data to the gateway
-                        gatehost.stdin( self.gateway[1], data )
+                        gatehost.stdin( self.gateway[1], msg, True )
                     else:
                         self.gateway = None
                 else:
@@ -339,7 +341,7 @@ class Client:
                                 # Log the event
                                 clog( self, "Logged in successfully" )
                                 # Resolve this account's gateway IP
-                                gatehost = Host.resolve( self.account.gateway )
+                                gatehost = Host.find_ip( self.account.gateway )
                                 # Does this account own a gateway
                                 if gatehost is None:
                                     # Print the banner for buying a gateway
@@ -416,7 +418,7 @@ class Client:
     # Handle gateway management
     def manager( self, data ):
         # Resolve this account's gateway IP
-        gatehost = Host.resolve( self.account.gateway )
+        gatehost = Host.find_ip( self.account.gateway )
 
         # Does this user even own a gateway?
         if gatehost is None:
@@ -445,12 +447,12 @@ class Client:
                         self.gateway = ( gatehost.ip, proc.pid )
                 # TTY is not in use start a new shell
                 else:
-                    # Get a free PID
-                    npid = gatehost.get_npid( )
-                    # Start the new shell
-                    gatehost.start( PhreakShell( npid, self.account.username, ntty ) )
+                    # Initialize a new shell
+                    nsh = PhreakShell( self.account.username, ntty )
+                    # Start the shell on the new host
+                    gatehost.start( nsh )
                     # Connect this client to the shell
-                    self.gateway = ( gatehost.ip, npid )
+                    self.gateway = ( gatehost.ip, nsh.pid )
             # Did the user press backspace
             elif data == "\x7F" and len( self.mg_tty ) > 0:
                 # Strip the last character from the string
@@ -475,7 +477,7 @@ class Client:
         # Check if we're connected to a gateway
         if self.gateway is not None:
             # Get the shell process on the gateway
-            gateshell = Host.resolve( self.gateway[0] ).get_pid( self.gateway[1] )
+            gateshell = Host.find_ip( self.gateway[0] ).get_pid( self.gateway[1] )
             if gateshell is not None:
                 # Fetch any output from the shell process and transmit it
                 data = gateshell.get_stdout( )
@@ -485,7 +487,7 @@ class Client:
                 self.gateway = None
                 # Print the correct banner
                 # Resolve gateway from IP
-                gateshell = Host.resolve( self.account.gateway )
+                gateshell = Host.find_ip( self.account.gateway )
                 # User no longer owns a gateway
                 if gateshell is None:
                     self.print_banner( legal_banner, legal_pos )
@@ -503,7 +505,7 @@ class Client:
         # Check if this client was connected to a tty
         if self.gateway is not None:
             # Tell the PhreakShell that it has no client
-            Host.resolve( self.gateway ).tty = None
+            Host.find_ip( self.gateway ).tty = None
         # Print exit banner
         clog( self, "Disconnected from PhreakNET" )
         self.stdout( "\r\n*** Connection to PhreakNET terminated ***\r\n" )

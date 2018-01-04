@@ -45,7 +45,7 @@ def main( ):
         # Client update cycle: Recieve Input, Send Output
         for _ in range( clen ):
             # Get the next client to update
-            c = gameserv.clients.pop( )
+            c = gameserv.clients.pop( 0 )
             # See if this client is alive
             if c.alive:
                 # Parse any new input

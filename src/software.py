@@ -18,9 +18,12 @@ class Process:
     # integer  | pid .... process id given by the system
     # function | func ... function to execute next by the cpu
     # string   | name ... name of the process
-    def __init__( self, pid, func, name, user="System", params=[] ):
+    def __init__( self, func, name, user="System", params=[] ):
+        ### Set by the host when the process is assigned ###
+        # Host reference
+        self.host = None
         # Process ID
-        self.pid = pid
+        self.pid = -1
         # Function to execute next, None to terminate process
         self.func = func
         # Name of the process
@@ -34,16 +37,16 @@ class Process:
 
     # Kill this process
     # Can be called remotely or returned from an proc loop
-    def kill( self, host=None ):
+    def kill( self ):
         self.func = None
         return None
 
 # A program is a process that is actively controlled by a player
 class Program( Process ):
 
-    def __init__( self, pid, func, name, user, origin, params=[] ):
+    def __init__( self, func, name, user, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( pid, func, name, user, params )
+        super( ).__init__( func, name, user, params )
 
         # Stores the location of the program to send/recv data to/from
         # Basically the stdin for this program
@@ -66,13 +69,15 @@ class Program( Process ):
         ### Storage for the Readline utility ###
         # Prompt for the readline
         self.rl_prompt = ""
-        # Buffer of keystrokes (array of strings)
+        # Buffer of keystrokes (array of tuples): ( data, delay, lag )
         # NOTE: Some keystroks are multiple chars
         self.rl_buff = []
         # readline output
         self.rl_line = ""
         # Cursor position
         self.rl_cpos = 0
+        # The input read timer
+        self.rl_timer = time.time( )
         # Used by readchar, filters out all chars except...
         self.rl_filter = ""
         # Readline next function
@@ -86,21 +91,27 @@ class Program( Process ):
 
     # Store keystroke sent from a different proccess
     #
-    # string | data ... a single keystroke
-    def stdin( self, data ):
-        # See if we need to forward the data or not
-        if self.destin is None:
-            # This program is not attached, add it to the buffer
-            self.rl_buff.append( data )
+    # Host    | host ... a reference to the host this prog is running on
+    # string  | data ... a single keystroke
+    # boolean | echo ... should we forward this packet to stdout
+    def stdin( self, data, echo=False ):
+        if not echo:
+            # Echo the data along
+            self.stdout( data )
         else:
-            # Forward data to process
-            if not Host.resolve( self.destin[0] ).stdin( self.destin[1], data ):
-                # If the destination process does not exist, close connection
-                self.destin = None
+            # See if we need to forward the data or not
+            if self.destin is None:
+                # This program is not attached, add it to the buffer
+                self.rl_buff.append( data )
+            else:
+                # Forward data to process
+                if not self.host.stdout( self.destin, data, True ):
+                    # If the destination process does not exist, close connection
+                    self.destin = None
 
-    # Send data to a different process
-    def stdout( self, data, delay=0 ):
-         Host.resolve( self.origin[0] ).stdout( self.origin[1], data )
+    # Simply forward along any stdout data
+    def stdout( self, data ):
+        self.host.stdout( self.origin, data )
 
     # Use readline as follows to request input for the next function
     # Usage:
@@ -114,7 +125,7 @@ class Program( Process ):
     # Example:
     #     return self.readline( myNextFunc, ... )
     #
-    # def myNextFunc( host ):
+    # def myNextFunc( self ):
     #     print( self.rl_line )
     def readline( self, nfunc, prompt="?", afunc=None, secure=False, purge=True, strip=True ):
         # Purge stdin / stdout
@@ -129,15 +140,32 @@ class Program( Process ):
         self.rl_strip = strip
         # Reset the cursor pointer
         self.rl_cpos = 0
+        # Reset the input timer
+        self.rl_timer = time.time( )
+
+        # Print the prompt
+        self.printl( self.rl_prompt )
         # Return the loop
         return self.readline_loop
 
     # Private, do not call
-    def readline_loop( self, host ):
+    def readline_loop( self ):
+        ### Process packet ###
         # Process the entire buff
         while self.rl_buff:
             # Pop the first char from the buff
-            key = self.rl_buff.pop( )
+            data = self.rl_buff.pop( 0 )
+            # Check if this packet can be read yet
+            if time.time( ) >= self.rl_timer + data[1] + max( data[2], 0 ):
+                # Update the timer
+                self.rl_timer = time.time( )
+            else:
+                # Not ready to proccess yet
+                self.rl_buff.insert( 0, data )
+                return self.readline_loop
+            # Extract the keypress
+            key = data[0]
+            ### Process keypress ###
             # Check if end of user input
             if key.find( "\r" ) >= 0:
                 # Strip whitespace from text
@@ -172,6 +200,12 @@ class Program( Process ):
                     # Add the key to the output
                     self.rl_line += key
                     self.rl_cpos += 1
+
+        # Check if we processed any data
+        if not self.rl_buff:
+            # Reset timer
+            self.rl_timer = time.time( )
+
         return self.readline_loop
 
     # Get exactly one char from the client
@@ -188,22 +222,39 @@ class Program( Process ):
         self.rl_nfunc = nfunc
         # Set prompt
         self.rl_prompt = prompt
+        # Reset timer
+        self.rl_timer = time.time( )
         # return the readchar loop
         return self.readchar_loop
 
     # Private, do not call
-    def readchar_loop( self, host ):
+    def readchar_loop( self ):
         # Check if the buffer has data in it
         if self.rl_buff:
             # Pop one keypress and store it in the output
-            key = self.rl_buff.pop( )
-            # Filter out any incorrect key presses
-            if len( self.rl_filter ) > 0 and key not in self.rl_filter:
+            data = self.rl_buff.pop( 0 )
+            # Check if it's time to print
+            if time.time( ) >= self.out_timer + data[1] + max( data[2], 0 ):
+                # Update the timer
+                self.rl_timer = time.time( )
+            # Not ready to print, keep waiting
+            else:
+                # Put the data back
+                self.rl_buff.insert( 0, data )
                 return self.readchar_loop
-            self.rl_line = key
+
+            # Filter out any incorrect key presses
+            if len( self.rl_filter ) > 0 and data[0] not in self.rl_filter:
+                return self.readchar_loop
+
+            # Store the keypress
+            self.rl_line = data[0]
             # Return the next function
             return self.rl_nfunc
+        # No data to read
         else:
+            # Update timer
+            self.rl_timer = time.time( )
             # Continue the loop
             return self.readchar_loop
 
@@ -212,30 +263,47 @@ class Program( Process ):
     # Extend this class with any cleanup code you might need
     # TIP: Set this as your rl_afunc, if want ctrl+c to kill
     # the program.
-    def kill( self, host=None ):
+    def kill( self ):
         # Tell our child to kill itself
         if self.destin is not None:
-            Host.resolve( self.destin[0] ).kill( self.destin[1] )
+            self.host.resolve( self.destin[0] ).kill( self.destin[1] )
         # Call parent function to terminate self
         return super( ).kill( )
 
     # Send message to client
     # Message is sent after delay has elapsed
     def printl( self, msg, delay=0 ):
-        # message, print delay, network lag
-        self.stdout( ( msg, delay, 0 ) )
+        # Ignore empty messages
+        if msg:
+            # message, print delay, network lag
+            self.stdout( ( msg, delay, 0 ) )
 
     # Send message to client followed by a newline
     def println( self, msg="", delay=0 ):
         self.printl( msg + "\r\n", delay )
 
+    # Print a message with a delay between each char
+    def sprintl( self, msg, delay=0 ):
+        # Ignore empty messages
+        if msg:
+            # Send the first char with network lag
+            self.stdout( ( msg[0], delay, 0 ) )
+            # Send the rest with no lag
+            for c in msg[1:]:
+                # The -1 disables system lag
+                self.stdout( ( c, delay, -1 ) )
+
+    # Print a message with a delay between each char followed by a newline
+    def sprintln( self, msg, delay=0 ):
+        self.sprintl( msg + "\r\n", delay )
+
 # The command interpreting shell program
 # Extend this to implement unique shells
 class Shell( Program ):
 
-    def __init__( self, pid, user, origin, params=[] ):
+    def __init__( self, user, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( pid, self.shell, "shell", user, origin, params )
+        super( ).__init__( self.shell, "shell", user, origin, params )
 
         # The default prompt for the command line
         self.sh_prompt = ">"
@@ -253,24 +321,24 @@ class Shell( Program ):
         }
 
     # The call to start the command processor
-    def shell( self, host ):
+    def shell( self ):
         return self.readline( self.shell_resolve, self.sh_prompt )
 
     # Resolve the command line input
-    def shell_resolve( self, host ):
+    def shell_resolve( self ):
         pass
 
     # The run command
-    def run( self, host ):
+    def run( self ):
         pass
 
 class SSH( Program ):
 
-    def __init__( self, pid, user, origin, params=[] ):
+    def __init__( self, user, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( pid, self.ssh, "SSH", user, origin, params )
+        super( ).__init__( self.ssh, "SSH", user, origin, params )
 
-    def ssh( self, host ):
+    def ssh( self ):
         # Was the host defined as an arg?
         if self.params:
             # Set the readline to the host
@@ -280,17 +348,17 @@ class SSH( Program ):
 
         return self.readline( self.ssh_resolve, "Remote host IP? " )
 
-    def ssh_resolve( self, host ):
+    def ssh_resolve( self ):
         # Resolve the remote host form IP
-        dhost = Host.resolve( self.rl_line )
+        dhost = host.resolve( self.rl_line )
         # Check if this is a real host
         if dhost is not None:
-            # Get a free process id from that host
-            npid = dhost.get_npid( )
+            # Create a new Shell
+            nsh = Shell( self.user, ( self.host, self.pid ) )
             # Start a shell on the remote host
-            dhost.start( Shell( npid, self.user, ( host, self.pid ) ) )
+            dhost.start( nsh )
             # Forward any input to that shell
-            self.destin = ( dhost, npid )
+            self.destin = ( dhost, nsh.pid )
         else:
             # Send an error message
             self.println( "%%no response from host at " + self.rl_line )

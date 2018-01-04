@@ -22,7 +22,7 @@ class Account:
         # Abort unless accounts is empty
         if Account.accounts: return False
         # Get all files in the usr/ directory
-        usrs = next( os.walk( 'usr' ) )[2];
+        usrs = next( os.walk( 'usr' ) )[2]
         # Load each file
         for usr in usrs:
             if usr.endswith( '.usr' ):
