@@ -9,7 +9,7 @@
 from init import *
 
 import time
-import hashlib
+from hashlib import pbkdf2_hmac
 import os
 import pickle
 
@@ -70,10 +70,10 @@ class Account:
         # Make sure the request is reasonable
         if len( pwd ) > 64: return b""
         # Password hashing function, with sha512
-        return hashlib.pbkdf2_hmac( 'sha512',
-                                    # Encode the password into utf-8
-                                    pwd.encode( ),
-                                    # Add in the random salt
-                                    self.passsalt,
-                                    # Use 100,000 rounds for security
-                                    100000 )
+        return pbkdf2_hmac( 'sha512',
+                            # Encode the password into utf-8
+                            pwd.encode( ),
+                            # Add in the random salt
+                            self.passsalt,
+                            # Use 100,000 rounds for security
+                            100000 )

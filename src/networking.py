@@ -122,6 +122,9 @@ class Server:
                break
 
     def __del__( self ):
+        # Terminate all clients
+        for c in self.clients:
+            c.kill( )
         # Ensure that we unbind the socket from the port
         self.termserv.close( )
         # Print shutdown message
@@ -449,10 +452,8 @@ class Client:
                 else:
                     # Initialize a new shell
                     nsh = PhreakShell( self.account.username, ntty )
-                    # Start the shell on the new host
-                    gatehost.start( nsh )
-                    # Connect this client to the shell
-                    self.gateway = ( gatehost.ip, nsh.pid )
+                    # Start the shell on the new host, and set the gateway
+                    self.gateway = gatehost.start( nsh )
             # Did the user press backspace
             elif data == "\x7F" and len( self.mg_tty ) > 0:
                 # Strip the last character from the string
@@ -508,7 +509,8 @@ class Client:
             Host.find_ip( self.gateway ).tty = None
         # Print exit banner
         clog( self, "Disconnected from PhreakNET" )
-        self.stdout( "\r\n*** Connection to PhreakNET terminated ***\r\n" )
+        self.stdout( ansi_move( self.height, 1 ) + "\r\n" )
+        self.stdout( "*** Connection to PhreakNET terminated ***\r\n" )
         self.sock.close( )
         # Flag client for deletion
         self.alive = False

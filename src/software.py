@@ -10,43 +10,28 @@ from init import *
 
 import time
 
-# A process is any piece of software running on a host
-class Process:
+# Program filenames matched to their Class
+progtbl = {}
 
-    # pdata = ( pid, func, name )
-    #
-    # integer  | pid .... process id given by the system
-    # function | func ... function to execute next by the cpu
-    # string   | name ... name of the process
-    def __init__( self, func, name, user="System", params=[] ):
+# A program is a process that is actively controlled by a player
+class Program( ):
+
+    def __init__( self, func, name, user, tty, origin, params=[] ):
         ### Set by the host when the process is assigned ###
-        # Host reference
-        self.host = None
-        # Process ID
-        self.pid = -1
+        # Host reference and PID
+        self.hpid = None
         # Function to execute next, None to terminate process
         self.func = func
         # Name of the process
         self.name = name
         # Owner of the process
         self.user = user
+        # Processes don't run on ttys
+        self.tty = tty
         # Additional Parameters
         self.params = params
         # Time started
         self.started = time.time( )
-
-    # Kill this process
-    # Can be called remotely or returned from an proc loop
-    def kill( self ):
-        self.func = None
-        return None
-
-# A program is a process that is actively controlled by a player
-class Program( Process ):
-
-    def __init__( self, func, name, user, origin, params=[] ):
-        # Pass parent args along
-        super( ).__init__( func, name, user, params )
 
         # Stores the location of the program to send/recv data to/from
         # Basically the stdin for this program
@@ -89,6 +74,14 @@ class Program( Process ):
         # Strip leading / trailing whitespace
         self.rl_strip = True
 
+        ### Storage for the Pager utility ###
+        # Array of strings to display
+        self.pg_lines = []
+        # Which line the pager is on
+        self.pg_pos = 0
+        # Pager next function
+        self.pg_nfunc = None
+
     # Store keystroke sent from a different proccess
     #
     # Host    | host ... a reference to the host this prog is running on
@@ -105,13 +98,13 @@ class Program( Process ):
                 self.rl_buff.append( data )
             else:
                 # Forward data to process
-                if not self.host.stdout( self.destin, data, True ):
+                if not self.hpid[0].stdout( self.destin, data, True ):
                     # If the destination process does not exist, close connection
                     self.destin = None
 
     # Simply forward along any stdout data
     def stdout( self, data ):
-        self.host.stdout( self.origin, data )
+        self.hpid[0].stdout( self.origin, data )
 
     # Use readline as follows to request input for the next function
     # Usage:
@@ -258,17 +251,30 @@ class Program( Process ):
             # Continue the loop
             return self.readchar_loop
 
+    # Page data, easy too for reading long files
+    def pager( self, lines, nfunc ):
+        # Store the data lines
+        self.pg_lines = lines
+        # Reset the pager pos
+        self.pg_pos = 0
+        # Set the next function to call
+        self.pg_nfunc = None
+        # Return the pager loop
+        return self.pager_loop
+
+    def pager_loop( self ):
+        pass
+
     # Recursively kill this program and all it's children
-    # Can be called remotely or returned from an prog loop
     # Extend this class with any cleanup code you might need
-    # TIP: Set this as your rl_afunc, if want ctrl+c to kill
-    # the program.
+    # TIP: Set this as your rl_afunc, if want ctrl+c to kill the program.
     def kill( self ):
         # Tell our child to kill itself
         if self.destin is not None:
-            self.host.resolve( self.destin[0] ).kill( self.destin[1] )
+            self.hpid[0].resolve( self.destin[0] ).kill( self.destin[1] )
         # Call parent function to terminate self
-        return super( ).kill( )
+        self.func = None
+        return None
 
     # Send message to client
     # Message is sent after delay has elapsed
@@ -281,6 +287,10 @@ class Program( Process ):
     # Send message to client followed by a newline
     def println( self, msg="", delay=0 ):
         self.printl( msg + "\r\n", delay )
+
+    # Send an error message to the client followed by a newline
+    def error( self, msg, delay=0 ):
+        self.println( "%%" + msg, delay )
 
     # Print a message with a delay between each char
     def sprintl( self, msg, delay=0 ):
@@ -301,23 +311,29 @@ class Program( Process ):
 # Extend this to implement unique shells
 class Shell( Program ):
 
-    def __init__( self, user, origin, params=[] ):
+    def __init__( self, user, tty, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( self.shell, "shell", user, origin, params )
+        super( ).__init__( self.shell, "shell", user, tty, origin, params )
 
         # The default prompt for the command line
         self.sh_prompt = ">"
+        # Stores arguments for commands
+        self.sh_args = []
+        # Stores the current working directory
+        self.sh_cwd = "/usr/" + self.user
 
         # Default command table, commands common to all hosts
-        # function | fn   ... Function to call when command executed
+        # Program  | prg  ... Program to be run by this command
         # integer  | priv ... 0 = Guest, 1 = User, 2 = Root
         # string   | help ... Message to display in the help menu
         #
         # Usage:
         #
-        # "myCmd" : { fn : myCmdFunc, priv : <0-2>, help : "How 2 Use" },
+        # "myCmd" : { prg : myProgObj, priv : <0-2>, help : "How 2 Use" },
         self.sh_ctbl = {
-            "exit" : { "fn" : self.kill, "priv" : 0, "help" : "Terminate connection to this system" },
+            "exit" : { "prg" : self.kill, "priv" : 0, "help" : "exit||Terminate connection to this system" },
+            "run"  : { "prg" : self.run,  "priv" : 1, "help" : "run <file>||Run an executable program on disk", },
+            "ssh"  : { "prg" : self.ssh,  "priv" : 1, "help" : "ssh <ip address>||Start a Shell session on a remote host", },
         }
 
     # The call to start the command processor
@@ -326,41 +342,63 @@ class Shell( Program ):
 
     # Resolve the command line input
     def shell_resolve( self ):
-        pass
+        # Split the readline input
+        self.sh_args = self.rl_line.split( )
+        # Extract the command from the string
+        cmd = self.sh_args.pop( 0 )
+
+        if cmd in self.sh_ctbl:
+            if "fn" in self.sh_ctbl[cmd]:
+                # Command is an internal function
+                return self.sh_ctbl[cmd]["fn"]
+            else:
+                # Command is an external program
+                prg = self.sh_ctbl[cmd]["prg"]( self.user, self.tty, self.hpid, self.sh_args )
+                # Start the new program and set the destination
+                self.destin = self.hpid[0].start( prg )
+                # Return a shell for when we quit
+                return self.shell
+        else:
+            self.error( "unknown command" )
+
+        return self.shell
 
     # The run command
     def run( self ):
         pass
 
+progtbl["shell"] = Shell
+
+# Starts a Shell session on a remote host
 class SSH( Program ):
 
-    def __init__( self, user, origin, params=[] ):
+    def __init__( self, user, tty, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( self.ssh, "SSH", user, origin, params )
+        super( ).__init__( self.ssh, "ssh", user, tty, origin, params )
 
+    # Connect to a remote host and start a shell
     def ssh( self ):
-        # Was the host defined as an arg?
-        if self.params:
-            # Set the readline to the host
-            self.rl_line = self.params[0]
-            # Return the resolve function
-            return self.ssh_resolve
-
-        return self.readline( self.ssh_resolve, "Remote host IP? " )
-
-    def ssh_resolve( self ):
-        # Resolve the remote host form IP
-        dhost = host.resolve( self.rl_line )
-        # Check if this is a real host
-        if dhost is not None:
-            # Create a new Shell
-            nsh = Shell( self.user, ( self.host, self.pid ) )
-            # Start a shell on the remote host
-            dhost.start( nsh )
-            # Forward any input to that shell
-            self.destin = ( dhost, nsh.pid )
+        if self.sh_args:
+            # Resolve the remote host form IP
+            dhost = self.hpid[0].resolve( self.sh_args[0] )
+            # Check if this is a real host
+            if dhost is not None:
+                # Request a new TTY
+                ntty = dhost.request_tty( )
+                # Make sure this host has free TTYs
+                if ntty is not None:
+                    # Create a new Shell
+                    nsh = Shell( self.user, ntty, self.hpid )
+                    # Start a shell on the remote host, and set the destination
+                    self.destin = dhost.start( nsh )
+                else:
+                    self.error( "unable to procure free TTY" )
+            else:
+                self.error( "no response from host at " + self.rl_line )
         else:
-            # Send an error message
-            self.println( "%%no response from host at " + self.rl_line )
+            self.error( "usage: ssh <ip address>" )
 
-        return None
+        # Close the program once the shell is closed
+        return self.kill
+
+progtbl["ssh"] = SSH
