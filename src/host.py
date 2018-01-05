@@ -7,7 +7,9 @@
 ####################################
 
 from init import *
+
 import os
+import string
 import random
 import binascii
 
@@ -77,7 +79,7 @@ class Host:
         self.alive = time.time( )
 
         # Build the filesystem
-        self.fileid = "".join([random.choice(string.ascii_letters + string.digits) for n in range(32)])
+        self.fileid = "".join([random.choice(string.ascii_letters + string.digits) for n in range(16)])
         # Build the root directory
         os.makedirs( "dir/" + self.fileid )
         # Build the SYS directory
@@ -150,7 +152,7 @@ class Host:
         # Loop until a free TTY is found
         for _ in range( self.mtty - 64 ):
             # Increment self.ntty from last time
-            self.ntty += 1:
+            self.ntty += 1
             # Make sure self.ntty isn't greater then self.mtty
             if self.ntty >= self.mtty:
                 self.ntty = 64
@@ -186,13 +188,14 @@ class Host:
             # ptbl is full cant start
             return None
 
-        # Pass a reference to this host and the new PID
-        proc.hpid = ( self, self.npid )
+        # Pass this host's IP and the new PID
+        proc.host = self
+        proc.pid = self.npid
 
         # Append program to our ptbl
         self.ptbl.append( proc )
         # Program started, return the tuple
-        return proc.hpid
+        return ( self.ip, self.npid )
 
     # Processes and Programs should use this as much as possible
     def resolve( self, ip ):
@@ -251,154 +254,3 @@ class Host:
     def shutdown( self ):
         # Mark this host as offline
         self.online = False
-
-# Shitty file handling
-# Probably need to revise all this
-"""
-    # Returns true if the specified user has root privlages
-    def has_root( self, user ):
-        if user == "guest": return False
-        if user == "root": return True
-
-        return False
-
-    # Returns true if the specified user is root
-    def is_root( self, user ):
-        if user == "guest": return False
-        if user == "root": return True
-
-    # Check if a user can access this directory
-    # op: 0 = Read, 1 = Write, 2 = Exec
-    def checkpath( self, path, user, op=0 )
-        # Normalize the path
-        path = os.path.realpath( path )
-
-        # Calculate the privlages for this user
-        privs = 0
-        if user != "guest": privs += 1
-        if self.is_root( user ): privs += 1
-
-        # Calculate the absolute path of the root directory
-        root = os.path.join( os.path.realpath( "dir/" + self.fileid ), "" )
-        # No one should be able to access anything outside the root directory
-        if os.path.commonprefix([path, root]) != root:
-            return False
-
-        # Get a list of files in the directory
-        files = next( os.walk( path ) )[2]
-        # Only access directories with a priv file
-        if "directory.priv" in files:
-            with open( "directory.priv" ) as dp:
-                # Evaluate the privlages for this files
-                return dp.readline( )[privs * 3 + op] != "-"
-        else:
-            return False
-
-    # Read a file safely
-    def readfile( self, path, user ):
-        # Sanitize path
-        path = os.path.realpath( path )
-
-        # Does the user have privlage to read this file
-        if not self.checkpath( path, user, 0 ): return ""
-
-        # Users may not access the directory priv directly
-        if path.endswith( "directory.priv" ): return ""
-
-        # Return the file as an array of lines
-        with open( path ) as f:
-            return f.readlines( )
-
-    # Write a file safely
-    def writefile( self, path, data, user ):
-        # Sanitize path
-        path = os.path.realpath( path )
-
-        # Does the user have privlage to modify this file
-        if not self.checkpath( path, user, 1 ): return False
-
-        # Users may not access the directory priv directly
-        if path.endswith( "directory.priv" ): return False
-
-        # Create, or overwrite this file
-        with open( path, "w" ) as f:
-            # Is the data a string or an array
-            if type( data ) is str:
-                f.write( data )
-            else:
-                f.writelines( data )
-
-        return True
-
-    # Append data to a file safely
-    def appendfile( self, path, data, user ):
-        # Sanitize path
-        path = os.path.realpath( path )
-
-        # Does the user have privlage to modify this file
-        if not self.checkpath( path, user, 1 ): return False
-
-        # Users may not access the directory priv directly
-        if path.endswith( "directory.priv" ): return False
-
-        # Create, or append data to this file
-        with open( path, "a" ) as f:
-            # Is the data a string or an array
-            if type( data ) is str:
-                f.write( data )
-            else:
-                f.writelines( data )
-
-        return True
-
-    # Returns a list of all the files in the directory
-    def listdir( self, path, user ):
-        # Sanitize path
-        path = os.path.realpath( path )
-
-        # Does the user have privlage to read this directory
-        if not self.checkpath( path, user, 0 ): return ""
-
-        # Get a list of dirs and files
-        ( _, dirs, files ) = next( os.walk( path ) )
-
-        # Load the privs for the current directory
-        privs = ""
-        with open( path + "/directory.priv" ) as f:
-            privs = f.readline( )
-
-        # Output list
-        out = []
-
-        for fl in files:
-            # Unixtime for when the file was last accessed
-            last = os.path.getmtime( path + "/" + fl )
-            # Get the size of the file in bytes
-            size = os.path.getsize( path + "/" + fl )
-            # Format the string
-            out.append( "-%s %16s %6s %s %s" % ( privs, "guest", size, time.strftime( "%b %d %H:%M" ), fl ) )
-
-        for dl in dirs:
-            # Unixtime for when the dir was last accessed
-            last = os.path.getmtime( path + "/" + dl )
-            # Get the priv for this directory
-            with open( path + "/" + dl + "/directory.priv" ) as pf:
-                dpriv = pf.readline( )
-                # Format the string
-                out.append( "d%s %16s %6s %s %s" % ( dpriv, "guest", "4096", time.strftime( "%b %d %H:%M" ), dl ) )
-
-        return out
-
-    # Add a user to the data base
-    def adduser( self, user ):
-        # Append this user to the passwd file, use a random password for security reasons
-        self.appendfile( "dir/" + self.fileid + "/sys/passwd", user + ":" + binascii.hexlify( os.urandom( 32 ) ), "root" )
-
-    def deluser( self, user ):
-        # Get a list of users and passwords
-        lines = self.readfile( "dir/" + self.fileid + "/sys/passwd", "root" )
-        # Remove the specific user from the list
-        npswd = [ l for l in lines if l.startswith( user ) ]
-        # Write the data to the passwd file
-        self.writefile( "dir/" + self.fileid + "/sys/passwd",  npswd, "root" )
-"""

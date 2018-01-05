@@ -19,8 +19,8 @@ login_banner = []
 login_pos = [ (12, 17), (14, 57), (19, 28), (21, 28) ]
 with open( '../dat/phreaknet/login.bnr' ) as bnr:
     while True:
-        # Get next line
-        ln = bnr.readline( )
+        # Get next line, and remove \r\n
+        ln = bnr.readline( ).strip( "\n" ).strip( "\r" )
         # Break on EOF
         if ln == "": break
         # Append the banner line by line
@@ -33,7 +33,7 @@ privacy_pos = ( 22, 77 )
 with open( '../dat/phreaknet/privacy.bnr' ) as bnr:
     while True:
         # Get next line
-        ln = bnr.readline( )
+        ln = bnr.readline( ).strip( "\n" ).strip( "\r" )
         # Break on EOF
         if ln == "": break
         # Append the banner line by line
@@ -46,7 +46,7 @@ legal_pos = ( 20, 63 )
 with open( '../dat/phreaknet/legal.bnr' ) as bnr:
     while True:
         # Get next line
-        ln = bnr.readline( )
+        ln = bnr.readline( ).strip( "\n" ).strip( "\r" )
         # Break on EOF
         if ln == "": break
         # Append the banner line by line
@@ -59,7 +59,7 @@ boot_pos = ( 22, 56 )
 with open( '../dat/phreaknet/boot.bnr' ) as bnr:
     while True:
         # Get next line
-        ln = bnr.readline( )
+        ln = bnr.readline( ).strip( "\n" ).strip( "\r" )
         # Break on EOF
         if ln == "": break
         # Append the banner line by line
@@ -72,7 +72,7 @@ manager_pos = [ ( 13, 29 ), ( 13, 52 ), ( 22, 59 ) ]
 with open( '../dat/phreaknet/manager.bnr' ) as bnr:
     while True:
         # Get next line
-        ln = bnr.readline( )
+        ln = bnr.readline( ).strip( "\n" ).strip( "\r" )
         # Break on EOF
         if ln == "": break
         # Append the banner line by line
@@ -142,8 +142,7 @@ class Client:
         # A reference to this user's account
         self.account = None
         # Standard Terminal width and height
-        self.width = 80
-        self.height = 24
+        self.size = ( 80, 24 )
 
         # Exact time this client connected
         self.first = time.time( )
@@ -179,7 +178,10 @@ class Client:
         # Encode the message if needed
         if not type( msg ) is bytes: msg = msg.encode( )
         # Send the message to the client as bytes
-        self.sock.send( msg )
+        try:
+            self.sock.send( msg )
+        except BrokenPipeError:
+            pass
 
     # Buffer input from this client's socket
     # Return True if the client is still connected
@@ -198,7 +200,7 @@ class Client:
                 # Disconnect if escape key is pressed
                 if data == "\x1B":
                     # Move the cursor to the last line
-                    self.stdout( ansi_move( self.height, 1 ) )
+                    self.stdout( ansi_move( self.size[1], 1 ) )
                     # Disconnect
                     self.kill( )
                     return False
@@ -238,8 +240,18 @@ class Client:
             # Get the correct offset
             np += 3
             # Set width and height (min of 80x24)
-            self.width  = max( int(data[np    ]) * 256 + int(data[np + 1]), 80 )
-            self.height = max( int(data[np + 2]) * 256 + int(data[np + 3]), 24 )
+            self.size = ( max( int(data[np    ]) * 256 + int(data[np + 1]), 80 ),
+                          max( int(data[np + 2]) * 256 + int(data[np + 3]), 24 ) )
+
+            # Did we just connect?
+            # Reprint login prompt
+            if self.account is None and self.ac_prompt == 0:
+                self.login_banner( "Welcome to PhreakNET" )
+
+            # Update our gateway's size too
+            if self.gateway is not None:
+                gateshell = Host.find_ip( self.gateway[0] ).get_pid( self.gateway[1] )
+                gateshell.setsize( self.size )
             # Was a command string
             return True
 
@@ -251,10 +263,13 @@ class Client:
         # Clear the screen
         self.stdout( ansi_clear( ) )
 
-        # Print each row of the banner
-        for ln in login_banner:
-            # Don't allow overflow on small windows
-            self.stdout( ln[0:self.width] )
+        # Add newlines on big windows
+        if self.size[0] > len( login_banner[0] ):
+            self.stdout( "\r\n".join( login_banner ) )
+        # Normal size windows
+        else:
+            self.stdout( "".join( login_banner ) )
+
         # Print out the welcome message in the correct spot
         self.stdout( ansi_move( login_pos[0] ) +
                      msg[0:47].upper( ) +
@@ -265,10 +280,12 @@ class Client:
         # Clear the screen
         self.stdout( ansi_clear( ) )
 
-        # Print each row of the banner
-        for ln in manager_banner:
-            # Don't allow overflow on small windows
-            self.stdout( ln[0:self.width] )
+        # Add newlines on big windows
+        if self.size[0] > len( manager_banner[0] ):
+            self.stdout( "\r\n".join( manager_banner ) )
+        # Normal size windows
+        else:
+            self.stdout( "".join( manager_banner ) )
 
         # Fill out blanks
         pass
@@ -281,12 +298,14 @@ class Client:
         # Clear the screen
         self.stdout( ansi_clear( ) )
 
-        # Print each row of the banner
-        for ln in banner:
-            # Don't allow overflow on small windows
-            self.stdout( ln[0:self.width] )
+        # Add newlines on big windows
+        if self.size[0] > len( banner[0] ):
+            self.stdout( "\r\n".join( banner ) )
+        # Normal size windows
+        else:
+            self.stdout( "".join( banner ) )
 
-        # Move the cursor to the correct spot
+        # Move cursor to the correct pos
         self.stdout( ansi_move( pos ) )
 
     # Handle the initial login
@@ -430,7 +449,7 @@ class Client:
                 # Make a new gateway
                 nhst = Host( "Gateway_" + str( randint( 100000, 999999 ) ) )
                 # Log the creation
-                clog( self, "Requested a new gateway: " + nhst.hostname )
+                clog( self, "Requested a new gateway: " + nhst.hostname + "@" + nhst.ip )
                 # Copy the IP address
                 self.account.gateway = nhst.ip
                 # Print the system boot banner
@@ -444,14 +463,16 @@ class Client:
                 for proc in gatehost.ptbl:
                     # Check if this proc is our TTY
                     if hasattr( proc, 'tty' ) and proc.tty == ntty:
+                        self.stdout( ansi_clear( ) + "*** RECOVERED PREVIOUS SESSION ***\r\n" )
                         # Reset the print delay timer
                         proc.out_last = time.time( )
                         # Connect this client to the shell
                         self.gateway = ( gatehost.ip, proc.pid )
+                        break
                 # TTY is not in use start a new shell
                 else:
                     # Initialize a new shell
-                    nsh = PhreakShell( self.account.username, ntty )
+                    nsh = PhreakShell( self.account.username, ntty, self.size )
                     # Start the shell on the new host, and set the gateway
                     self.gateway = gatehost.start( nsh )
             # Did the user press backspace
@@ -503,13 +524,9 @@ class Client:
     def kill( self ):
         # Can't die twice
         if not self.alive: return
-        # Check if this client was connected to a tty
-        if self.gateway is not None:
-            # Tell the PhreakShell that it has no client
-            Host.find_ip( self.gateway ).tty = None
         # Print exit banner
         clog( self, "Disconnected from PhreakNET" )
-        self.stdout( ansi_move( self.height, 1 ) + "\r\n" )
+        self.stdout( ansi_move( self.size[1], 1 ) + "\r\n" )
         self.stdout( "*** Connection to PhreakNET terminated ***\r\n" )
         self.sock.close( )
         # Flag client for deletion

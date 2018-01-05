@@ -13,13 +13,23 @@ import time
 # Program filenames matched to their Class
 progtbl = {}
 
+# A dictionary of aliases for the readchar method
+readchar_alias = {
+    "\x1B[A" : "up",
+    "\x1B[B" : "down",
+    "\x1B[C" : "right",
+    "\x1B[D" : "left",
+}
+
 # A program is a process that is actively controlled by a player
 class Program( ):
 
-    def __init__( self, func, name, user, tty, origin, params=[] ):
+    def __init__( self, func, name, user, tty, size, origin, params=[] ):
         ### Set by the host when the process is assigned ###
-        # Host reference and PID
-        self.hpid = None
+        # Host reference
+        self.host = None
+        # THis prog's PID
+        self.pid = -1
         # Function to execute next, None to terminate process
         self.func = func
         # Name of the process
@@ -28,6 +38,8 @@ class Program( ):
         self.user = user
         # Processes don't run on ttys
         self.tty = tty
+        # Size of the terminal screen
+        self.size = size
         # Additional Parameters
         self.params = params
         # Time started
@@ -64,7 +76,7 @@ class Program( ):
         # The input read timer
         self.rl_timer = time.time( )
         # Used by readchar, filters out all chars except...
-        self.rl_filter = ""
+        self.rl_filter = []
         # Readline next function
         self.rl_nfunc = None
         # Readline abort (ctrl+c) function
@@ -98,13 +110,13 @@ class Program( ):
                 self.rl_buff.append( data )
             else:
                 # Forward data to process
-                if not self.hpid[0].stdout( self.destin, data, True ):
+                if not self.host.stdout( self.destin, data, True ):
                     # If the destination process does not exist, close connection
                     self.destin = None
 
     # Simply forward along any stdout data
     def stdout( self, data ):
-        self.hpid[0].stdout( self.origin, data )
+        self.host.stdout( self.origin, data )
 
     # Use readline as follows to request input for the next function
     # Usage:
@@ -205,7 +217,7 @@ class Program( ):
     # function | nfunc .... the function to execute after a key is pressed
     # string   | prompt ... the prompt to display to the client
     # boolean  | purge .... discard existing input data in the buffer
-    def readchar( self, nfunc, prompt="?", filter="", purge=True ):
+    def readchar( self, nfunc, prompt="?", filter=[], purge=True ):
         # Clear stdin / stdout
         self.rl_buff = ""
         if purge: del self.rl_buff[:]
@@ -236,12 +248,19 @@ class Program( ):
                 self.rl_buff.insert( 0, data )
                 return self.readchar_loop
 
+            # Extract keypress
+            key = data[0]
+            # Ensure compatibility between terms
+            if key.find( "\r" ) >= 0: key = "\r"
+            # Substitute aliases
+            if key in readchar_alias: key = readchar_alias[key]
+
             # Filter out any incorrect key presses
-            if len( self.rl_filter ) > 0 and data[0] not in self.rl_filter:
+            if len( self.rl_filter ) > 0 and key not in self.rl_filter:
                 return self.readchar_loop
 
             # Store the keypress
-            self.rl_line = data[0]
+            self.rl_line = key
             # Return the next function
             return self.rl_nfunc
         # No data to read
@@ -252,18 +271,46 @@ class Program( ):
             return self.readchar_loop
 
     # Page data, easy too for reading long files
-    def pager( self, lines, nfunc ):
+    def pager( self, lines, nfunc, cat=False ):
+        # If the file's short enough just dump it
+        if len( lines ) <= self.size[1] or cat:
+            for ln in lines:
+                self.println( ln )
+            # We're done with this file, so just abort
+            return nfunc
+
         # Store the data lines
         self.pg_lines = lines
         # Reset the pager pos
         self.pg_pos = 0
         # Set the next function to call
         self.pg_nfunc = None
+
+        # Reset the readline output, not strictly nescisary
+        self.rl_line = ""
+
         # Return the pager loop
         return self.pager_loop
 
     def pager_loop( self ):
-        pass
+        # Scroll up
+        if self.rl_line == "up" and self.pg_pos > 0:
+            self.pg_pos -= 1
+        # Scroll down
+        elif self.rl_line == "down" and self.pg_pos + self.size[1] < len( self.pg_lines ):
+            self.pg_pos += 1
+        # Exit pager
+        elif self.rl_line == "q" or self.rl_line == "^C":
+            return self.pg_nfunc
+
+        # Print the section of the file
+        for i in range( self.pg_pos, self.pg_pos + self.size[1] ):
+            self.printl( self.pg_lines[i] )
+
+        # Calculate the precentage of the way through the document
+        per = ( self.pg_pos + self.size[1] ) / len( self.pg_lines )
+        # Return the readchar prompt
+        return self.readchar( self.pager_loop, "--More--(%s)" % per, [ "up", "down" ] )
 
     # Recursively kill this program and all it's children
     # Extend this class with any cleanup code you might need
@@ -271,7 +318,7 @@ class Program( ):
     def kill( self ):
         # Tell our child to kill itself
         if self.destin is not None:
-            self.hpid[0].resolve( self.destin[0] ).kill( self.destin[1] )
+            self.host.resolve( self.destin[0] ).kill( self.destin[1] )
         # Call parent function to terminate self
         self.func = None
         return None
@@ -286,11 +333,15 @@ class Program( ):
 
     # Send message to client followed by a newline
     def println( self, msg="", delay=0 ):
-        self.printl( msg + "\r\n", delay )
+        # Don't add \r\n if the message fits perfectly
+        if len( msg ) == self.size[0]:
+            self.printl( msg, delay )
+        else:
+            self.printl( msg + "\r\n", delay )
 
     # Send an error message to the client followed by a newline
     def error( self, msg, delay=0 ):
-        self.println( "%%" + msg, delay )
+        self.println( "%" + msg, delay )
 
     # Print a message with a delay between each char
     def sprintl( self, msg, delay=0 ):
@@ -307,33 +358,58 @@ class Program( ):
     def sprintln( self, msg, delay=0 ):
         self.sprintl( msg + "\r\n", delay )
 
+    # Recursively set the terminal size
+    def setsize( self, size ):
+        self.size = size
+        # Do we have a child program
+        if self.destin is not None:
+            # Resolve the child program's host
+            dhost = self.host.resolve( self.destin[0] )
+            # Does this host exist?
+            if dhost is not None:
+                # Get the child process on this host
+                dprg = dhost.get_pid( self.destin[1] )
+                # Is the child process still running?
+                if dprg is not None:
+                    # Set the terminal size on that prog
+                    dprg.setsize( size )
+                    return
+        # Could not contact the child program
+        self.destin = None
+
 # The command interpreting shell program
 # Extend this to implement unique shells
 class Shell( Program ):
 
-    def __init__( self, user, tty, origin, params=[] ):
+    help = "shell||start a sh"
+
+    def __init__( self, user, tty, size, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( self.shell, "shell", user, tty, origin, params )
+        super( ).__init__( self.shell, "shell", user, tty, size, origin, params )
 
         # The default prompt for the command line
         self.sh_prompt = ">"
+        # The prompt to display when a bad commmand was entered
+        self.sh_error = "unknown command"
         # Stores arguments for commands
         self.sh_args = []
         # Stores the current working directory
         self.sh_cwd = "/usr/" + self.user
 
-        # Default command table, commands common to all hosts
-        # Program  | prg  ... Program to be run by this command
-        # integer  | priv ... 0 = Guest, 1 = User, 2 = Root
+        # Default command table stores internal commands
+        # function | fn   ... function to be run by this command
         # string   | help ... Message to display in the help menu
         #
         # Usage:
         #
-        # "myCmd" : { prg : myProgObj, priv : <0-2>, help : "How 2 Use" },
+        # "myCmd" : { fn : myCmdFnc, priv : <0-2>, help : "How 2 Use" },
         self.sh_ctbl = {
-            "exit" : { "prg" : self.kill, "priv" : 0, "help" : "exit||Terminate connection to this system" },
-            "run"  : { "prg" : self.run,  "priv" : 1, "help" : "run <file>||Run an executable program on disk", },
-            "ssh"  : { "prg" : self.ssh,  "priv" : 1, "help" : "ssh <ip address>||Start a Shell session on a remote host", },
+            "help"  : { "fn" : self.help,  "help" : "help [command]||print this list or info on a specific command", },
+            "exit"  : { "fn" : self.kill,  "help" : "exit||terminate connection to this system", },
+            "cd"    : { "fn" : self.cdir,  "help" : "cd [path]||change the working directory", },
+            "pwd"   : { "fn" : self.pwd,   "help" : "pwd||print the current working directory", },
+            "kill"  : { "fn" : self.pkill, "help" : "kill <pid>||terminate a process running on this system", },
+            "clear" : { "fn" : self.clear, "help" : "clear||clear the terminal screen", },
         }
 
     # The call to start the command processor
@@ -344,43 +420,85 @@ class Shell( Program ):
     def shell_resolve( self ):
         # Split the readline input
         self.sh_args = self.rl_line.split( )
-        # Extract the command from the string
-        cmd = self.sh_args.pop( 0 )
+        # Confirm that there's actually text here
+        if self.sh_args:
+            # Extract the command from the string
+            cmd = self.sh_args.pop( 0 )
 
-        if cmd in self.sh_ctbl:
-            if "fn" in self.sh_ctbl[cmd]:
-                # Command is an internal function
+            if cmd in self.sh_ctbl:
+                # Command was an internal command
                 return self.sh_ctbl[cmd]["fn"]
-            else:
+            elif cmd in progtbl:
                 # Command is an external program
-                prg = self.sh_ctbl[cmd]["prg"]( self.user, self.tty, self.hpid, self.sh_args )
+                prg = self.progtbl[cmd]( self.user, self.tty, self.size, (self.host.ip, self.pid), self.sh_args )
                 # Start the new program and set the destination
-                self.destin = self.hpid[0].start( prg )
-                # Return a shell for when we quit
-                return self.shell
-        else:
-            self.error( "unknown command" )
+                self.destin = self.host.start( prg )
+            else:
+                self.error( self.sh_error )
 
         return self.shell
 
-    # The run command
-    def run( self ):
-        pass
+    # Print the help screen
+    def help( self ):
+        # Print each command's help
+        for cmd in self.sh_ctbl:
+            # Split the command from the help message
+            hlp = self.sh_ctbl[cmd]["help"].split( "||" )
+            # Calculate the correct number of tabs
+            tabs = "\t" * int(max( 4 - len( hlp[0] ) / 8, 0 ))
+            # Print out the help for this command
+            self.println( hlp[0] + tabs + hlp[1] )
+
+        return self.shell
+
+    # Alter the current working directory
+    def cdir( self ):
+        if self.sh_args:
+            # Calculate the correct directory
+            sol = os.path.normpath( os.path.join( self.sh_cwd, self.sh_args[0] ) )
+
+            if os.path.isfile( "dir/" + self.host.fileid + sol ):
+                self.error( "Not a directory" )
+            if os.path.isdir( "dir/" + self.host.fileid + sol ):
+                self.sh_cwd = sol
+            else:
+                self.error( "No such file or directory" )
+        else:
+            self.sh_cwd = "/usr/" + self.user
+
+        return self.shell
+
+    # Print the current working directory
+    def pwd( self ):
+        self.println( self.sh_cwd )
+        return self.shell
+
+    # Clear the terminal screen
+    def clear( self ):
+        self.printl( ansi_clear( ) )
+        return self.shell
+
+    # Kill a process running on this host
+    def pkill( self ):
+
+        return self.shell
 
 progtbl["shell"] = Shell
 
 # Starts a Shell session on a remote host
 class SSH( Program ):
 
-    def __init__( self, user, tty, origin, params=[] ):
+    help = "SSH||ssh <ip address>||start a Shell session on a remote host"
+
+    def __init__( self, user, tty, size, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( self.ssh, "ssh", user, tty, origin, params )
+        super( ).__init__( self.ssh, "ssh", user, tty, size, origin, params )
 
     # Connect to a remote host and start a shell
     def ssh( self ):
         if self.sh_args:
             # Resolve the remote host form IP
-            dhost = self.hpid[0].resolve( self.sh_args[0] )
+            dhost = self.host.resolve( self.sh_args[0] )
             # Check if this is a real host
             if dhost is not None:
                 # Request a new TTY
@@ -388,7 +506,7 @@ class SSH( Program ):
                 # Make sure this host has free TTYs
                 if ntty is not None:
                     # Create a new Shell
-                    nsh = Shell( self.user, ntty, self.hpid )
+                    nsh = Shell( self.user, ntty, self.size, ( self.host.ip, self.pid ) )
                     # Start a shell on the remote host, and set the destination
                     self.destin = dhost.start( nsh )
                 else:
