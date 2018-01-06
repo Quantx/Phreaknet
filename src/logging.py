@@ -16,7 +16,8 @@ import time
 # Log a server action
 def xlog( msg ):
     # Date/Time (24 hour) format: [MM/DD/YYYY|HH:MM:SS]
-    sys.stdout.write( time.strftime( "[%m/%d/%Y|%H:%M:%S]" ) + msg + "\n" )
+    out = time.strftime( "[%m/%d/%Y|%H:%M:%S]" ) + msg + "\r\n"
+    sys.stdout.write( out )
 
 # Log a client action
 # The clit varaible should be of type Client

@@ -457,10 +457,19 @@ class Shell( Program ):
             # Calculate the correct directory
             sol = os.path.normpath( os.path.join( self.sh_cwd, self.sh_args[0] ) )
 
+            # Is this path a file?
             if os.path.isfile( "dir/" + self.host.fileid + sol ):
                 self.error( "Not a directory" )
-            if os.path.isdir( "dir/" + self.host.fileid + sol ):
-                self.sh_cwd = sol
+            # Is this path a directory?
+            elif os.path.isdir( "dir/" + self.host.fileid + sol ):
+                # Do we have read privs for this directory?
+                if self.host.pathpriv( "dir/" + self.host.fileid + sol,
+                                       self.user, 0 ):
+                    # Set our new directory
+                    self.sh_cwd = sol
+                else:
+                    self.error( "Permission denied" )
+            # Invalid path
             else:
                 self.error( "No such file or directory" )
         else:

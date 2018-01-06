@@ -91,6 +91,13 @@ class Host:
         # Build the USR directory
         os.makedirs( "dir/" + self.fileid + "/usr" )
 
+        # Build the directory.priv files
+        with open( "dir/" + self.fileid + "/directory.priv",     "w" ) as dp: dp.write( "r-xrwxrwx" )
+        with open( "dir/" + self.fileid + "/sys/directory.priv", "w" ) as dp: dp.write( "---r--rw-" )
+        with open( "dir/" + self.fileid + "/bin/directory.priv", "w" ) as dp: dp.write( "--xr-xrwx" )
+        with open( "dir/" + self.fileid + "/log/directory.priv", "w" ) as dp: dp.write( "r--r--rw-" )
+        with open( "dir/" + self.fileid + "/usr/directory.priv", "w" ) as dp: dp.write( "r-xrwxrwx" )
+
         ### Process table ###
         # Stores all the processes running on this host
         self.ptbl = []
@@ -254,3 +261,70 @@ class Host:
     def shutdown( self ):
         # Mark this host as offline
         self.online = False
+
+    # Set privlages for a direcory
+    # Returns true if privs were altered
+    # priv should be a 9 character string in this format:
+    # G
+    # U  U  R
+    # E  S  O
+    # S  E  O
+    # T  R  T
+    # rwxrwxrwx
+    def setpriv( self, path, user, priv ):
+        # Are we allowed to edit this directory
+        if not self.pathpriv( path, user, 1 ): return False
+        # Get the correct priv file
+        if os.path.isdir( path ):
+            path += "/directory.priv"
+        elif os.path.isfile( path ):
+            path = os.path.dirname( path ) + "/directory.priv"
+        else:
+            return False
+
+        # Validate priv string
+        if len( priv ) != 9: return False
+        for i in range(9):
+            if priv[i] != "-" and priv[i] != "rwxrwxrwx"[i]: return False
+
+        # Write priv file
+        with open( path, "w" ) as dp:
+            dp.write( out )
+
+        return True
+
+    # Returns true if this user has privlage to preform this operation
+    # Oper: Read = 0, Write = 1, Execute = 2
+    def pathpriv( self, path, user, oper ):
+        # Calculate this user's privlage
+        upriv = 0
+        if user != "guest": upriv = 1
+        if user == "root": upriv = 2
+        # Check if we're accessing a file or a directory
+        if os.path.isdir( path ):
+            # Locate the directorie's priv file
+            file = path + "/directory.priv"
+        elif os.path.isfile( path ):
+            # Update path
+            path = os.path.dirname( path )
+            # Get a path to the directory.priv file
+            file = path + "/directory.priv"
+        else:
+            # Invalid path
+            return False
+        # Make sure this directory actualy contains a priv file
+        if not os.path.isfile( file ): return False
+        # Store the privs for this directory
+        privs = ""
+        # Load the privs
+        with open( file ) as dp:
+            privs = dp.readline( ).strip( )
+        # Decode privs
+        if privs[upriv * 3 + oper] == "-": return False
+
+        # Recursively check the privs to make sure noting's inherited
+        if file != "dir/" + self.fileid + "/directory.priv":
+            path = os.path.normpath( os.path.join( path, ".." ) )
+            return self.pathpriv( path, user, oper )
+
+        return True
