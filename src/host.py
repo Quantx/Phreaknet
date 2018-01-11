@@ -59,6 +59,9 @@ class Host:
         return True
 
     def __init__( self, name ):
+        # The unique ID of this host
+        self.hostid = "".join([random.choice(string.ascii_letters + string.digits) for n in range(16)])
+
         ### Host info ###
         # Name of the host
         self.hostname = name
@@ -78,25 +81,24 @@ class Host:
         # How long has this system been online
         self.alive = time.time( )
 
-        # Build the filesystem
-        self.fileid = "".join([random.choice(string.ascii_letters + string.digits) for n in range(16)])
+        ### File System ###
         # Build the root directory
-        os.makedirs( "dir/" + self.fileid )
+        os.makedirs( "dir/" + self.hostid )
         # Build the SYS directory
-        os.makedirs( "dir/" + self.fileid + "/sys" )
+        os.makedirs( "dir/" + self.hostid + "/sys" )
         # Build the BIN directory
-        os.makedirs( "dir/" + self.fileid + "/bin" )
+        os.makedirs( "dir/" + self.hostid + "/bin" )
         # Build the LOG directory
-        os.makedirs( "dir/" + self.fileid + "/log" )
+        os.makedirs( "dir/" + self.hostid + "/log" )
         # Build the USR directory
-        os.makedirs( "dir/" + self.fileid + "/usr" )
+        os.makedirs( "dir/" + self.hostid + "/usr" )
 
-        # Build the directory.priv files
-        with open( "dir/" + self.fileid + "/directory.priv",     "w" ) as dp: dp.write( "r-xrwxrwx" )
-        with open( "dir/" + self.fileid + "/sys/directory.priv", "w" ) as dp: dp.write( "---r--rw-" )
-        with open( "dir/" + self.fileid + "/bin/directory.priv", "w" ) as dp: dp.write( "--xr-xrwx" )
-        with open( "dir/" + self.fileid + "/log/directory.priv", "w" ) as dp: dp.write( "r--r--rw-" )
-        with open( "dir/" + self.fileid + "/usr/directory.priv", "w" ) as dp: dp.write( "r-xrwxrwx" )
+        # Build the directory.priv files                            owner, group, other = perms    owner group
+        with open( "dir/" + self.hostid + "/.directory.priv",     "w" ) as dp: dp.write( "r-xr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/sys/.directory.priv", "w" ) as dp: dp.write( "rwxr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/bin/.directory.priv", "w" ) as dp: dp.write( "rwxr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/log/.directory.priv", "w" ) as dp: dp.write( "rwxrwxr-x root root" )
+        with open( "dir/" + self.hostid + "/usr/.directory.priv", "w" ) as dp: dp.write( "rwxrwxr-x root root" )
 
         ### Process table ###
         # Stores all the processes running on this host
@@ -265,20 +267,20 @@ class Host:
     # Set privlages for a direcory
     # Returns true if privs were altered
     # priv should be a 9 character string in this format:
-    # G
-    # U  U  R
-    # E  S  O
-    # S  E  O
-    # T  R  T
+    # O  G  O
+    # W  R  T
+    # N  O  H
+    # E  O  E
+    # R  P  R
     # rwxrwxrwx
-    def setpriv( self, path, user, priv ):
+    def set_priv( self, path, user, priv ):
         # Are we allowed to edit this directory
         if not self.pathpriv( path, user, 1 ): return False
         # Get the correct priv file
         if os.path.isdir( path ):
-            path += "/directory.priv"
+            path += "/.directory.priv"
         elif os.path.isfile( path ):
-            path = os.path.dirname( path ) + "/directory.priv"
+            path = os.path.dirname( path ) + "/.directory.priv"
         else:
             return False
 
@@ -287,31 +289,34 @@ class Host:
         for i in range(9):
             if priv[i] != "-" and priv[i] != "rwxrwxrwx"[i]: return False
 
+        # Get previous priv data
+        with open( path ) as dp:
+            oldp = dp.readline( ).strip( )
+
+        # Create the new priv string
+        newp = priv + oldp[:9]
+
         # Write priv file
         with open( path, "w" ) as dp:
-            dp.write( out )
+            dp.write( newp )
 
         return True
 
     # Returns true if this user has privlage to preform this operation
     # Oper: Read = 0, Write = 1, Execute = 2
-    def pathpriv( self, path, user, oper ):
-        # Calculate this user's privlage
-        upriv = 0
-        if user != "guest": upriv = 1
-        if user == "root": upriv = 2
+    def path_priv( self, path, user, oper ):
         # Check if we're accessing a file or a directory
         if os.path.isdir( path ):
             # Locate the directorie's priv file
-            file = path + "/directory.priv"
+            file = path + "/.directory.priv"
         elif os.path.isfile( path ):
             # Update path
             path = os.path.dirname( path )
-            # Get a path to the directory.priv file
-            file = path + "/directory.priv"
+            # Get a path to the this file's .filename.priv partner
+            file = path + "/." + os.path.basename( path ) + ".priv"
         else:
             # Invalid path
-            return False
+            raise PhreaknetOSError( "No such file or directory" )
         # Make sure this directory actualy contains a priv file
         if not os.path.isfile( file ): return False
         # Store the privs for this directory
@@ -319,12 +324,95 @@ class Host:
         # Load the privs
         with open( file ) as dp:
             privs = dp.readline( ).strip( )
-        # Decode privs
-        if privs[upriv * 3 + oper] == "-": return False
 
-        # Recursively check the privs to make sure noting's inherited
-        if file != "dir/" + self.fileid + "/directory.priv":
-            path = os.path.normpath( os.path.join( path, ".." ) )
-            return self.pathpriv( path, user, oper )
+        # Split privs
+        privs = privs.split( )
 
+        # Get all groups this user is in
+        groups = self.get_groups( user )
+
+        # Is this user the owner and a group member?
+        if ( user == privs[1] and priv[2] in groups
+            # Check owner privs
+            and privs[0][oper] == "-"
+            # Check group privs
+            and privs[0][3 + oper] == "-"
+            # Check other privs
+            and privs[0][6 + oper] == "-" ): return False
+        # Is this user just the owner
+        elif ( user == privs[1]
+            # Check owner privs
+            and privs[0][oper] == "-"
+            # Check other privs
+            and privs[0][6 + oper] == "-" ): return False
+        # Is this user just a member of this path's group?
+        elif ( priv[2] in self.get_groups( user )
+            # Check group privs
+            and privs[0][oper] == "-"
+            # Check other privs
+            and privs[0][6 + oper] == "-" ): return False
+        # User is not the owner or a member, just check other privs
+        elif priv[0][6 + oper] == "-": return False
+
+        # This user does have permission
         return True
+
+    # Dump the contents of a file to a string
+    def read_file( self, file, user ):
+        # Make sure we have permission to access this file
+        if not self.pathpriv( file, user, 0 ): raise PhreaknetOSError( "Permission denied" )
+        # Cannot read directories
+        if self.path.isdir( "dir/" + self.hostid + file ): raise PhreaknetOSError( "Is a directory" )
+
+        # Open the file
+        with open( "dir/" + self.hostid + file ) as fd:
+            # Return the contents
+            return fd.read( )
+
+    # Dump the contents of a file to an array of strings
+    def read_lines( self, file, user ):
+        # Output variable
+        lines = []
+        # Get the data
+        data = self.read_file( file, user )
+        # Convert data to an array
+        for l in s.splitlines( ):
+            # Strip any whitespace and append
+            lines.append( l.strip( ) )
+
+        return lines
+
+    # Write the contents of data to a file
+    # Data must either be a string or an array of strings
+    def write_file( self, file, user, data ):
+        # Concatinate arrays of strings
+        if not isinstance( data, str ): data = "\n".join( data )
+        # Make sure we have permission to access this file
+        if not self.pathpriv( file, user, 0 ): raise PhreaknetOSError( "Permission denied" )
+        # Cannot read directories
+        if self.path.isdir( "dir/" + self.hostid + file ): raise PhreaknetOSError( "Is a directory" )
+        # Open the file
+        with open( "dir/" + self.hostid + file ) as fd:
+            # Write the data
+            fd.write( data )
+
+    # List all the groups this user is in
+    # Group file format:
+    # groupName:x:groupID:user0,user1,user2
+    def get_groups( self, user ):
+        # Get the group file
+        glines = self.read_lines( "/sys/group", user )
+        # Stores all groups the user is in
+        groups = []
+        # Iterate through the group file
+        for gln in glines:
+            # Split the data
+            gr = gln.split( ":" )
+            # Check if this user is a member of the group
+            if user in gr[3].split( "," ): groups.append( gr )
+
+        return group
+
+# This is a generic error that is displayed to the user
+# The first arg must be a string to be displayed
+def PhreaknetOSError( Exception ): pass

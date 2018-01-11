@@ -458,13 +458,13 @@ class Shell( Program ):
             sol = os.path.normpath( os.path.join( self.sh_cwd, self.sh_args[0] ) )
 
             # Is this path a file?
-            if os.path.isfile( "dir/" + self.host.fileid + sol ):
+            if os.path.isfile( "dir/" + self.host.hostid + sol ):
                 self.error( "Not a directory" )
             # Is this path a directory?
-            elif os.path.isdir( "dir/" + self.host.fileid + sol ):
+            elif os.path.isdir( "dir/" + self.host.hostid + sol ):
                 # Do we have read privs for this directory?
-                if self.host.pathpriv( "dir/" + self.host.fileid + sol,
-                                       self.user, 0 ):
+                if self.host.pathpriv( "dir/" + self.host.hostid + sol,
+                                       self.user, 2 ):
                     # Set our new directory
                     self.sh_cwd = sol
                 else:
