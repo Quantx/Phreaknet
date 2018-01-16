@@ -275,7 +275,7 @@ class Host:
     # rwxrwxrwx
     def set_priv( self, path, user, priv ):
         # Are we allowed to edit this directory
-        if not self.pathpriv( path, user, 1 ): return False
+        if not self.path_priv( path, user, 1 ): return False
         # Get the correct priv file
         if os.path.isdir( path ):
             path += "/.directory.priv"
@@ -360,7 +360,7 @@ class Host:
     # Dump the contents of a file to a string
     def read_file( self, file, user ):
         # Make sure we have permission to access this file
-        if not self.pathpriv( file, user, 0 ): raise PhreaknetOSError( "Permission denied" )
+        if not self.path_priv( file, user, 0 ): raise PhreaknetOSError( "Permission denied" )
         # Cannot read directories
         if self.path.isdir( "dir/" + self.hostid + file ): raise PhreaknetOSError( "Is a directory" )
 
@@ -384,21 +384,31 @@ class Host:
 
     # Write the contents of data to a file
     # Data must either be a string or an array of strings
-    def write_file( self, file, user, data ):
+    def write_file( self, file, user, data, append=False ):
+        # Set the default file mode
+        mode = "w"
+        # Check if we're in append mode
+        if append: mode = "a"
         # Concatinate arrays of strings
         if not isinstance( data, str ): data = "\n".join( data )
         # Make sure we have permission to access this file
-        if not self.pathpriv( file, user, 0 ): raise PhreaknetOSError( "Permission denied" )
+        if not self.path_priv( file, user, 0 ): raise PhreaknetOSError( "Permission denied" )
         # Cannot read directories
         if self.path.isdir( "dir/" + self.hostid + file ): raise PhreaknetOSError( "Is a directory" )
         # Open the file
-        with open( "dir/" + self.hostid + file ) as fd:
+        with open( "dir/" + self.hostid + file, mode ) as fd:
             # Write the data
             fd.write( data )
+
+    # Append data to a file
+    def append_file( self, file, user, data ):
+        # Call the write function with append mode
+        return self.write_file( file, user, data, True )
 
     # List all the groups this user is in
     # Group file format:
     # groupName:x:groupID:user0,user1,user2
+    # root:x:0:root,architect,underground
     def get_groups( self, user ):
         # Get the group file
         glines = self.read_lines( "/sys/group", user )
@@ -409,9 +419,41 @@ class Host:
             # Split the data
             gr = gln.split( ":" )
             # Check if this user is a member of the group
-            if user in gr[3].split( "," ): groups.append( gr )
+            if user in gr[3].split( "," ):
+                # Append group to the list of groups
+                groups.append( gr )
 
         return group
+
+    # Returns true if this user has an account here
+    # Passwd file format:
+    # username:x:userID:groupID:fingerInfo:homeDir:commandShell
+    # architect:x:1021:1020:PhreakNET Dev:/usr/architect:/bin/shell
+    def check_user( self, user ):
+        # Read the password file
+        plines = self.read_lines( "/sys/passwd", user )
+        # Iterate through each user
+        for acct in plines:
+            # Splite each line on the dividing char
+            acct = acct.split( ":" )
+            # Check if thie is the right account
+            if acct[0] == user: return True
+        # Account not found
+        return False
+
+    # Check if this password matches this username
+    # Returns false if this user does not exist
+    # Returns false if this user does not have an account
+    # Returns false if the password does not match
+    def check_pass( self, username, password ):
+        # Find the account that matches this username
+        acct = Account.find_account( username )
+        # Check that this account exists
+        if acct is None: return False
+        # Check that this user has an account here
+        if not self.check_user( username ): return False
+        # Check that this is the correct password
+        return acct.check_pass( password )
 
 # This is a generic error that is displayed to the user
 # The first arg must be a string to be displayed

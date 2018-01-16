@@ -30,12 +30,20 @@ class Account:
                     Account.accounts.append( pickle.load( f ) )
         return True
 
+    # Returns the account with the specified username
+    # Returns none if no such account exists
+    def find_account( username ):
+        for acct in Account.accounts:
+            if acct.username == username:
+                return acct
+        return None
+
     def __init__( self, uname, pwd ):
         # Username and Password for this account
         self.username = uname
         # Salts prevent rainbow table attacks
         self.passsalt = os.urandom( 64 )
-        self.password = self.hashpass( pwd )
+        self.password = self.hash_pass( pwd )
         # Exact time this account was created
         self.first = time.time( )
         # The IP adresses of this account's gateway
@@ -51,22 +59,22 @@ class Account:
 
     # Set a new password for this account
     # Returns if successful
-    def setpass( self, oldpass, newpass ):
+    def set_pass( self, oldpass, newpass ):
         # Make sure we're authorized to change the password
-        if not self.checkpass( oldpass ): return False
+        if not self.check_pass( oldpass ): return False
         # Get ourselves a new random salt
         self.passsalt = os.urandom( 64 )
-        self.password = self.hashpass( newpass )
+        self.password = self.hash_pass( newpass )
 
         return True
 
     # Check the password for this account
-    def checkpass( self, pwd ):
-        return self.password == self.hashpass( pwd )
+    def check_pass( self, pwd ):
+        return self.password == self.hash_pass( pwd )
 
     # Get a cryptographically secure hash of a password
     # THIS IS A SLOW FUNCTION, use it sparingly
-    def hashpass( self, pwd ):
+    def hash_pass( self, pwd ):
         # Make sure the request is reasonable
         if len( pwd ) > 64: return b""
         # Password hashing function, with sha512

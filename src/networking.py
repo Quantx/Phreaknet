@@ -357,7 +357,7 @@ class Client:
                     # Find the requested account
                     for acct in Account.accounts:
                         if acct.username == self.ac_user:
-                            if acct.checkpass( self.ac_pass ):
+                            if acct.check_pass( self.ac_pass ):
                                 # Assign the account to the client
                                 self.account = acct
                                 # Log the event
@@ -466,6 +466,8 @@ class Client:
                         self.stdout( ansi_clear( ) + "*** RECOVERED PREVIOUS SESSION ***\r\n" )
                         # Reset the print delay timer
                         proc.out_last = time.time( )
+                        # Output the scrollback buffer
+                        self.stdout( proc.out_back )
                         # Connect this client to the shell
                         self.gateway = ( gatehost.ip, proc.pid )
                         break

@@ -22,7 +22,7 @@ readchar_alias = {
 }
 
 # A program is a process that is actively controlled by a player
-class Program( ):
+class Program:
 
     def __init__( self, func, name, user, tty, size, origin, params=[] ):
         ### Set by the host when the process is assigned ###
@@ -38,7 +38,7 @@ class Program( ):
         self.user = user
         # Processes don't run on ttys
         self.tty = tty
-        # Size of the terminal screen
+        # Size of the terminal screen ( width, height )
         self.size = size
         # Additional Parameters
         self.params = params
@@ -463,8 +463,8 @@ class Shell( Program ):
             # Is this path a directory?
             elif os.path.isdir( "dir/" + self.host.hostid + sol ):
                 # Do we have read privs for this directory?
-                if self.host.pathpriv( "dir/" + self.host.hostid + sol,
-                                       self.user, 2 ):
+                if self.host.path_priv( "dir/" + self.host.hostid + sol,
+                                        self.user, 2 ):
                     # Set our new directory
                     self.sh_cwd = sol
                 else:
@@ -473,6 +473,7 @@ class Shell( Program ):
             else:
                 self.error( "No such file or directory" )
         else:
+            # No path specified, set the working dir to the home dir
             self.sh_cwd = "/usr/" + self.user
 
         return self.shell
