@@ -94,11 +94,22 @@ class Host:
         os.makedirs( "dir/" + self.hostid + "/usr" )
 
         # Build the directory.priv files                            owner, group, other = perms    owner group
-        with open( "dir/" + self.hostid + "/.directory.priv",     "w" ) as dp: dp.write( "r-xr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/sys/.directory.priv", "w" ) as dp: dp.write( "rwxr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/bin/.directory.priv", "w" ) as dp: dp.write( "rwxr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/log/.directory.priv", "w" ) as dp: dp.write( "rwxrwxr-x root root" )
-        with open( "dir/" + self.hostid + "/usr/.directory.priv", "w" ) as dp: dp.write( "rwxrwxr-x root root" )
+        with open( "dir/" + self.hostid + "/.directory.priv",     "w" ) as fd: fd.write( "r-xr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/sys/.directory.priv", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/bin/.directory.priv", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/log/.directory.priv", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
+        with open( "dir/" + self.hostid + "/usr/.directory.priv", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
+
+        # Build the passwd file
+        with open( "dir/" + self.hostid + "/sys/passwd",          "w" ) as fd: fd.write( "root:x:0:0:root:/usr/root:/bin/shell" )
+        with open( "dir/" + self.hostid + "/sys/passwd.priv",     "w" ) as fd: fd.write( "rw-r--r-- root root" )
+        # Build the group file
+        with open( "dir/" + self.hostid + "/sys/group",           "w" ) as fd: fd.write( "root:x:0\n" )
+        with open( "dir/" + self.hostid + "/sys/group.priv",      "w" ) as fd: fd.write( "rw-r--r-- root root" )
+
+        # Build the user directory for the root account
+        os.makedirs( "dir/" + self.hostid + "/usr/root" )
+        with open( "dir/" + self.hostid + "/usr/root/.directory.priv", "w" ) as fd: fd.write( "rwx------ root root" )
 
         ### Process table ###
         # Stores all the processes running on this host
@@ -124,21 +135,24 @@ class Host:
 
     # Relay input to the respective PID
     # Returns if the process is still running
-    def stdin( self, pid, data, echo ):
-        for p in self.ptbl:
-            if p.pid == pid:
-                 # Pass the data
-                 p.stdin( data, echo )
-                 return True
+    def stdin( self, pid, data, forward=True ):
+        # Fetch the program
+        prog = self.get_pid( pid )
+        # Check if this program exists
+        if prog is not None:
+            # Program exists the data
+            prog.stdin( data, forward )
+            return True
+        # Program doesn't exist
         return False
 
     # Relay output to the respective PID
-    def stdout( self, target, data, echo=False ):
+    def stdout( self, target, data, forward=False ):
         # Resolve the destination host from the IP
         dhost = self.resolve( target[0] )
         if dhost is not None:
             # Transmit the data
-            return dhost.stdin( target[1], data, echo )
+            return dhost.stdin( target[1], data, forward )
         return False
 
     # Get a reference for the following PID
@@ -236,19 +250,22 @@ class Host:
             if not self.ptbl: return
             # Fetch next process
             proc = self.ptbl.pop( 0 )
-            # Make sure process isn't attached
-            if proc.destin is not None: continue
-            # Execute process
-            proc.func = proc.func( )
-            # Increment cycle counter
+            # Increment process counter
             i += 1
-            # Add running processes to the end of the queue
-            # Processes with a TTY set to None were created in error
-            if proc.func is not None or proc.tty is None:
-                self.ptbl.append( proc )
+            # Make sure process isn't attached
+            if proc.destin is None:
+                # Execute process
+                proc.func = proc.func( )
+                # Add running processes to the end of the queue
+                # Processes with a TTY set to None were created in error
+                if proc.func is not None or proc.tty is None:
+                   self.ptbl.append( proc )
+                else:
+                    # Ensure the process is dead
+                    proc.kill( )
             else:
-                # Ensure the process is dead
-                proc.kill( )
+                # Program is attached to another program standby for now
+                self.ptbl.append( proc )
 
     # Startup this host
     def startup( self, safemode=False ):

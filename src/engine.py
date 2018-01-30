@@ -25,6 +25,12 @@ def main( ):
     # Create the host directory if it doesn't exist
     if not os.path.exists( "hst" ):
         os.makedirs( "hst" )
+
+    # Build the program table
+    Program.build_progtbl( )
+    # Dump the program table
+    for p in Program.progtbl: print( p.__name__ )
+
     # Load all hosts from disk
     Host.load( )
 
@@ -49,7 +55,7 @@ def main( ):
             # See if this client is alive
             if c.alive:
                 # Parse any new input
-                if c.stdin( ):
+                if c.get_stdin( ):
                     # Fetch out put from the gateway
                     c.get_stdout( )
                     # Add the client to the end of the queue

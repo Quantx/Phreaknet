@@ -113,10 +113,12 @@ class Server:
                # Accept the connection
                sock = self.termserv.accept( )
                # Assign connection a client
-               cnew = Client( sock )
+               cnew = TelnetClient( sock )
+               # Disable socket blocking
+               cnew[0].setblocking( 0 )
                # Append client to array
                self.clients.append( cnew )
-               clog( cnew, "Connected to PhreakNET" )
+               xlog( "Connected to PhreakNET", cnew )
             # No remaining connections, break
             except socket.timeout:
                break
@@ -132,11 +134,11 @@ class Server:
 
 class Client:
 
-    def __init__( self, conn ):
-        # Store ip, port and socket
-        ( self.sock, ( self.ip, self.port ) ) = conn
-        # Disable blocking on the socket
-        self.sock.setblocking( 0 )
+    def __init__( self, ip, addr ):
+        # The IP this user is connecting from
+        self.ip = ""
+        # The port this user is connecting from
+        self.port = 0
         # A reference to this user's gateway machine and shell process
         self.gateway = None
         # A reference to this user's account
@@ -167,54 +169,46 @@ class Client:
         # DO NOT manually set this, call self.kill()
         self.alive = True
 
-        # Send terminal initialization string
-        self.sock.send( b"\xFF\xFD\x22\xFF\xFB\x01\xFF\xFB\x03\xFF\xFD\x1F" )
-
         # Print the login banner
         self.login_banner( "Welcome to PhreakNET" )
 
-    # Send data to the terminal
+    # Override this to handle output
     def stdout( self, msg ):
-        # Encode the message if needed
-        if not type( msg ) is bytes: msg = msg.encode( )
-        # Send the message to the client as bytes
-        try:
-            self.sock.send( msg )
-        except BrokenPipeError:
-            pass
+        pass
 
-    # Buffer input from this client's socket
-    # Return True if the client is still connected
+    # Override this to handle input, should return something
     def stdin( self ):
-        # Loop until we get a timeout exception
-        while True:
-            try:
-                data = self.sock.recv( 1024 )
-                # Check if this socket is still connected
-                if not data: return False
-                # Process IAC commands
-                if self.iac( data ): continue
-                # Not an IAC command so decode the data
-                data = data.decode( )
+        # This should auto-kill anything that doesn't override this
+        return None
 
-                # Disconnect if escape key is pressed
-                if data == "\x1B":
-                    # Move the cursor to the last line
-                    self.stdout( ansi_move( self.size[1], 1 ) )
-                    # Disconnect
-                    self.kill( )
-                    return False
+    # Process input from the client
+    def get_stdin( self ):
+        # Get a list of keypresses
+        msg = self.stdin( )
+        # Make sure the client is still connected
+        if msg is None: return False
+        # Process each keypress
+        for data in msg:
+            # Disconnect if escape key is pressed
+            if data == "\x1B":
+                # Move the cursor to the last line
+                self.stdout( ansi_move( self.size[1], 1 ) )
+                # Disconnect
+                self.kill( )
+                return False
 
-                # Check if we're connected to a gateway machine
-                if self.gateway is not None:
-                    # Resolve the gateway from this IP
-                    gatehost = Host.find_ip( self.gateway[0] )
-                    # Does the gateway still exist?
-                    if gatehost is not None:
-                        # Formulate packet with no delay or lag
-                        msg = ( data, 0, -1 )
-                        # Send data to the gateway
-                        gatehost.stdin( self.gateway[1], msg, True )
+            # Check if we're connected to a gateway machine
+            if self.gateway is not None:
+                # Resolve the gateway from this IP
+                gatehost = Host.find_ip( self.gateway[0] )
+                # Does the gateway still exist?
+                if gatehost is not None:
+                    # Formulate packet with no delay or lag
+                    msg = ( data, 0, -1 )
+                    # Send data to the gateway
+                    if not gatehost.stdin( self.gateway[1], msg, True ):
+                        # Shell no longer exists
+                        self.gateway = None
                     else:
                         self.gateway = None
                 else:
@@ -226,10 +220,8 @@ class Client:
                     else:
                         self.manager( data )
 
-            # No more data to recieve, timeout exception thrown
-            # Socket not ready, BlockingIOError thrown
-            except ( socket.timeout, BlockingIOError ):
-                return True
+        # Return true since we're still connected
+        return True
 
     # Process terminal commands sent form the client
     # Returns true if this was a command string
@@ -251,7 +243,7 @@ class Client:
             # Update our gateway's size too
             if self.gateway is not None:
                 gateshell = Host.find_ip( self.gateway[0] ).get_pid( self.gateway[1] )
-                gateshell.setsize( self.size )
+                gateshell.set_size( self.size )
             # Was a command string
             return True
 
@@ -327,9 +319,11 @@ class Client:
         elif self.ac_prompt == 1:
             # Handle the RETURN key being pressed
             if data.find( "\r" ) >= 0:
-                # Goto the next prompt
-                self.ac_prompt += 1
-                self.stdout( ansi_move( login_pos[3] ) )
+                # Was a long enough username entered?
+                if len( self.ac_user ) >= 4:
+                    # Goto the next prompt
+                    self.ac_prompt += 1
+                    self.stdout( ansi_move( login_pos[3] ) )
             elif data == "\x7F":
                 # Handle backspace
                 if len( self.ac_user ) > 0:
@@ -352,6 +346,8 @@ class Client:
         elif self.ac_prompt == 2:
             # Handle the RETURN key being pressed
             if data.find( "\r" ) >= 0:
+                # No password was given
+                if len( self.ac_pass ) == 0: return
                 # Are we logging in?
                 if self.ac_login:
                     # Find the requested account
@@ -361,7 +357,7 @@ class Client:
                                 # Assign the account to the client
                                 self.account = acct
                                 # Log the event
-                                clog( self, "Logged in successfully" )
+                                xlog( "Logged in successfully", self )
                                 # Resolve this account's gateway IP
                                 gatehost = Host.find_ip( self.account.gateway )
                                 # Does this account own a gateway
@@ -425,7 +421,7 @@ class Client:
                     # Create account and reset login data
                     self.account = Account( self.ac_user, self.ac_pass )
                     # Log the event
-                    clog( self, "Registered successfully" )
+                    xlog( "Registered successfully", self )
                     # This user cant have a gateway so ask him to make one
                     self.print_banner( legal_banner, legal_pos )
             else:
@@ -449,7 +445,7 @@ class Client:
                 # Make a new gateway
                 nhst = Host( "Gateway_" + str( randint( 100000, 999999 ) ) )
                 # Log the creation
-                clog( self, "Requested a new gateway: " + nhst.hostname + "@" + nhst.ip )
+                xlog( "Requested a new gateway: " + nhst.hostname + "@" + nhst.ip, self )
                 # Copy the IP address
                 self.account.gateway = nhst.ip
                 # Print the system boot banner
@@ -523,13 +519,61 @@ class Client:
                     self.print_banner( boot_banner, boot_pos )
 
     # Call this to flag this client for termination
+    # Returns false if already dead
     def kill( self ):
         # Can't die twice
-        if not self.alive: return
+        if not self.alive: return False
         # Print exit banner
-        clog( self, "Disconnected from PhreakNET" )
+        xlog( "Disconnected from PhreakNET", self )
         self.stdout( ansi_move( self.size[1], 1 ) + "\r\n" )
         self.stdout( "*** Connection to PhreakNET terminated ***\r\n" )
-        self.sock.close( )
         # Flag client for deletion
         self.alive = False
+        # Died successfully
+        return True
+
+# The specific client for Telnet connections
+class TelnetClient( Client ):
+
+    def __init__ ( self, conn ):
+        # Init super, with the IP and Port
+        super( ).__init__( conn[1][0], conn[1][1] )
+        # Extract the socket from the conn
+        self.sock = conn[0]
+        # Send terminal initialization string
+        self.sock.send( b"\xFF\xFD\x22\xFF\xFB\x01\xFF\xFB\x03\xFF\xFD\x1F" )
+
+    # Send data to the terminal
+    def stdout( self, msg ):
+        # Encode the message if needed
+        if not type( msg ) is bytes: msg = msg.encode( )
+        # Send the message to the client as bytes
+        try:
+            self.sock.send( msg )
+        except BrokenPipeError:
+            pass
+
+    # Handle input
+    def stdin( self ):
+        # Stores the keypresses
+        msg = []
+        # Process all the input
+        while True:
+            try:
+                data = self.sock.recv( 1024 )
+                # Check if this socket is still connected
+                if not data: return None
+                # Process IAC commands
+                if self.iac( data ): continue
+                # Not an IAC command so decode the data
+                data = data.decode( )
+                # Nothing left to handle
+                msg.append( data )
+            # If either of these errors occur, there's no more input to process
+            except ( socket.timeout, BlockingIOError ):
+                # Return the keypresses
+                return msg
+
+    def kill( self ):
+        # Close the connection, terminate this client
+        if super( ).kill( ): self.sock.close( )

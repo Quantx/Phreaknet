@@ -9,9 +9,7 @@
 from init import *
 
 import time
-
-# Program filenames matched to their Class
-progtbl = {}
+import sys
 
 # A dictionary of aliases for the readchar method
 readchar_alias = {
@@ -24,7 +22,32 @@ readchar_alias = {
 # A program is a process that is actively controlled by a player
 class Program:
 
-    def __init__( self, func, name, user, tty, size, origin, params=[] ):
+    # Stores a list of all programs on Phreaknet
+    progtbl = []
+
+    # Dynamically build the program table
+    @classmethod
+    def build_progtbl( cls ):
+        # Loop through every subclass of Program
+        for sub in cls.__subclasses__( ):
+            # Add this program to the table
+            Program.progtbl.append( sub )
+            # Iterate through this program's subclasses
+            sub.build_progtbl( )
+
+    # Get a program by name
+    @staticmethod
+    def find_prog( pname ):
+        # Iterate through the table
+        for prg in Program.progtbl:
+            # Do a case insensitive comparison
+            if prg.__name__.lower( ) == pname.lower( ):
+                # Return the first matching program
+                return prg
+        # No program with the matching name found
+        return None
+
+    def __init__( self, func, user, tty, size, origin, params=[] ):
         ### Set by the host when the process is assigned ###
         # Host reference
         self.host = None
@@ -33,7 +56,7 @@ class Program:
         # Function to execute next, None to terminate process
         self.func = func
         # Name of the process
-        self.name = name
+        self.name = type( self ).__name__.lower( )
         # Owner of the process
         self.user = user
         # Processes don't run on ttys
@@ -96,23 +119,22 @@ class Program:
 
     # Store keystroke sent from a different proccess
     #
-    # Host    | host ... a reference to the host this prog is running on
-    # string  | data ... a single keystroke
-    # boolean | echo ... should we forward this packet to stdout
-    def stdin( self, data, echo=False ):
-        if not echo:
+    # Host    | host ...... a reference to the host this prog is running on
+    # string  | data ...... a single keystroke
+    # boolean | forward ... should we forward this packet to the input buffer
+    def stdin( self, data, forward=False ):
+        if not forward:
             # Echo the data along
             self.stdout( data )
         else:
             # See if we need to forward the data or not
-            if self.destin is None:
-                # This program is not attached, add it to the buffer
-                self.rl_buff.append( data )
-            else:
-                # Forward data to process
-                if not self.host.stdout( self.destin, data, True ):
-                    # If the destination process does not exist, close connection
-                    self.destin = None
+            if ( self.destin is not None
+            and not self.host.stdout( self.destin, data, True ) ):
+                # Destination process does not exist, close connection
+                self.destin = None
+
+            # This program is not attached, add it to the buffer
+            self.rl_buff.append( data )
 
     # Simply forward along any stdout data
     def stdout( self, data ):
@@ -271,7 +293,9 @@ class Program:
             return self.readchar_loop
 
     # Page data, easy too for reading long files
-    def pager( self, lines, nfunc, cat=False ):
+    def pager( self, lines, nfunc=None, cat=False ):
+        # No next function was provided
+        if nfunc is None: nfunc = self.kill
         # If the file's short enough just dump it
         if len( lines ) <= self.size[1] or cat:
             for ln in lines:
@@ -315,10 +339,20 @@ class Program:
     # Recursively kill this program and all it's children
     # Extend this class with any cleanup code you might need
     # TIP: Set this as your rl_afunc, if want ctrl+c to kill the program.
-    def kill( self ):
+    def kill( self, recur=False ):
+        # If this is the first call then tell our origin we're dead
+        if not recur and self.origin is not None:
+            # Resolve the host at our origin
+            ohst = self.host.resolve( self.origin[0] )
+            if ohst is not None:
+                # Get the program running at this pid
+                pid = ohst.get_pid( self.origin[1] )
+                if pid is not None:
+                    # Set this program's destination to None
+                    pid.destin = None
         # Tell our child to kill itself
         if self.destin is not None:
-            self.host.resolve( self.destin[0] ).kill( self.destin[1] )
+            self.host.resolve( self.destin[0] ).kill( self.destin[1], True )
         # Call parent function to terminate self
         self.func = None
         return None
@@ -359,7 +393,7 @@ class Program:
         self.sprintl( msg + "\r\n", delay )
 
     # Recursively set the terminal size
-    def setsize( self, size ):
+    def set_size( self, size ):
         self.size = size
         # Do we have a child program
         if self.destin is not None:
@@ -372,7 +406,7 @@ class Program:
                 # Is the child process still running?
                 if dprg is not None:
                     # Set the terminal size on that prog
-                    dprg.setsize( size )
+                    dprg.set_size( size )
                     return
         # Could not contact the child program
         self.destin = None
@@ -385,7 +419,7 @@ class Shell( Program ):
 
     def __init__( self, user, tty, size, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( self.shell, "shell", user, tty, size, origin, params )
+        super( ).__init__( self.shell, user, tty, size, origin, params )
 
         # The default prompt for the command line
         self.sh_prompt = ">"
@@ -408,7 +442,6 @@ class Shell( Program ):
             "exit"  : { "fn" : self.kill,  "help" : "exit||terminate connection to this system", },
             "cd"    : { "fn" : self.cdir,  "help" : "cd [path]||change the working directory", },
             "pwd"   : { "fn" : self.pwd,   "help" : "pwd||print the current working directory", },
-            "kill"  : { "fn" : self.pkill, "help" : "kill <pid>||terminate a process running on this system", },
             "clear" : { "fn" : self.clear, "help" : "clear||clear the terminal screen", },
         }
 
@@ -424,13 +457,15 @@ class Shell( Program ):
         if self.sh_args:
             # Extract the command from the string
             cmd = self.sh_args.pop( 0 )
+            # Check if this command is an external program
+            pclass = Program.find_prog( cmd )
 
             if cmd in self.sh_ctbl:
                 # Command was an internal command
                 return self.sh_ctbl[cmd]["fn"]
-            elif cmd in progtbl:
+            elif pclass is not None:
                 # Command is an external program
-                prg = self.progtbl[cmd]( self.user, self.tty, self.size, (self.host.ip, self.pid), self.sh_args )
+                prg = pclass( self.user, self.tty, self.size, ("127.0.0.1", self.pid), self.sh_args )
                 # Start the new program and set the destination
                 self.destin = self.host.start( prg )
             else:
@@ -488,27 +523,18 @@ class Shell( Program ):
         self.printl( ansi_clear( ) )
         return self.shell
 
-    # Kill a process running on this host
-    def pkill( self ):
-
-        return self.shell
-
-progtbl["shell"] = Shell
-
 # Starts a Shell session on a remote host
 class SSH( Program ):
 
-    help = "SSH||ssh <ip address>||start a Shell session on a remote host"
-
     def __init__( self, user, tty, size, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( self.ssh, "ssh", user, tty, size, origin, params )
+        super( ).__init__( self.ssh, user, tty, size, origin, params )
 
     # Connect to a remote host and start a shell
     def ssh( self ):
-        if self.sh_args:
+        if self.params:
             # Resolve the remote host form IP
-            dhost = self.host.resolve( self.sh_args[0] )
+            dhost = self.host.resolve( self.params[0] )
             # Check if this is a real host
             if dhost is not None:
                 # Request a new TTY
@@ -529,4 +555,14 @@ class SSH( Program ):
         # Close the program once the shell is closed
         return self.kill
 
-progtbl["ssh"] = SSH
+# Prints the contents of a directory
+class LS( Program ):
+
+    def __init__( self, user, tty, size, origin, params=[] ):
+        # Pass parent args along
+        super( ).__init__( self.list, user, tty, size, origin, params )
+
+    def list( self ):
+        pass
+
+        return self.pager( "" )
