@@ -93,23 +93,23 @@ class Host:
         # Build the USR directory
         os.makedirs( "dir/" + self.hostid + "/usr" )
 
-        # Build the directory.priv files                            owner, group, other = perms    owner group
-        with open( "dir/" + self.hostid + "/.directory.priv",     "w" ) as fd: fd.write( "r-xr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/sys/.directory.priv", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/bin/.directory.priv", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/log/.directory.priv", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
-        with open( "dir/" + self.hostid + "/usr/.directory.priv", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
+        # Build the .priv files                           owner, group, other = perms    owner group
+        with open( "dir/" + self.hostid + "/.priv",     "w" ) as fd: fd.write( "r-xr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/sys/.priv", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/bin/.priv", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/log/.priv", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
+        with open( "dir/" + self.hostid + "/usr/.priv", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
 
         # Build the passwd file
-        with open( "dir/" + self.hostid + "/sys/passwd",          "w" ) as fd: fd.write( "root:x:0:0:root:/usr/root:/bin/shell" )
-        with open( "dir/" + self.hostid + "/sys/passwd.priv",     "w" ) as fd: fd.write( "rw-r--r-- root root" )
+        with open( "dir/" + self.hostid + "/sys/passwd",          "w" ) as fd: fd.write( "root:x:0:0:root,,,:/usr/root:/bin/shell\n" )
+        with open( "dir/" + self.hostid + "/sys/.passwd.priv",     "w" ) as fd: fd.write( "rw-r--r-- root root" )
         # Build the group file
-        with open( "dir/" + self.hostid + "/sys/group",           "w" ) as fd: fd.write( "root:x:0\n" )
-        with open( "dir/" + self.hostid + "/sys/group.priv",      "w" ) as fd: fd.write( "rw-r--r-- root root" )
+        with open( "dir/" + self.hostid + "/sys/group",           "w" ) as fd: fd.write( "root:x:0:\n" )
+        with open( "dir/" + self.hostid + "/sys/.group.priv",      "w" ) as fd: fd.write( "rw-r--r-- root root" )
 
         # Build the user directory for the root account
         os.makedirs( "dir/" + self.hostid + "/usr/root" )
-        with open( "dir/" + self.hostid + "/usr/root/.directory.priv", "w" ) as fd: fd.write( "rwx------ root root" )
+        with open( "dir/" + self.hostid + "/usr/root/.priv", "w" ) as fd: fd.write( "rwx------ root root" )
 
         ### Process table ###
         # Stores all the processes running on this host
@@ -118,6 +118,11 @@ class Host:
         self.npid = 0
         # Stores the maximum number of processes this host can run
         self.mpid = 65335
+
+        # Stores the next userID to assign
+        self.nuid = 1000
+        # Stores the next groupID to assign
+        self.ngid = 1000
 
         ### TTYs below 64 are reserved for non network connections ###
         # Stores the next tty to assign
@@ -181,7 +186,7 @@ class Host:
                 self.ntty = 64
 
             # Make sure the TTY is free
-            if self.get_tty( self.ntty ): continue
+            if self.check_tty( self.ntty ): continue
 
             # TTY is not in use, return it
             return self.ntty
@@ -281,6 +286,12 @@ class Host:
         # Mark this host as offline
         self.online = False
 
+    # Convert in game paths to actual system paths
+    def respath( self, path ):
+        if not path.startswith( "dir/" + self.hostid ):
+            return "dir/" + self.hostid + path
+        return path
+
     # Set privlages for a direcory
     # Returns true if privs were altered
     # priv should be a 9 character string in this format:
@@ -291,13 +302,15 @@ class Host:
     # R  P  R
     # rwxrwxrwx
     def set_priv( self, path, user, priv ):
+        # Fix the path
+        path = self.respath( path )
         # Are we allowed to edit this directory
         if not self.path_priv( path, user, 1 ): return False
         # Get the correct priv file
         if os.path.isdir( path ):
-            path += "/.directory.priv"
+            path += "/.priv"
         elif os.path.isfile( path ):
-            path = os.path.dirname( path ) + "/.directory.priv"
+            path = os.path.dirname( path ) + "/.priv"
         else:
             return False
 
@@ -322,20 +335,27 @@ class Host:
     # Returns true if this user has privlage to preform this operation
     # Oper: Read = 0, Write = 1, Execute = 2
     def path_priv( self, path, user, oper ):
+        # Fix the path
+        path = self.respath( path )
         # Check if we're accessing a file or a directory
         if os.path.isdir( path ):
             # Locate the directorie's priv file
-            file = path + "/.directory.priv"
+            file = path + "/.priv"
         elif os.path.isfile( path ):
             # Update path
-            path = os.path.dirname( path )
+            basepath = os.path.dirname( path )
             # Get a path to the this file's .filename.priv partner
-            file = path + "/." + os.path.basename( path ) + ".priv"
+            file = basepath + "/." + os.path.basename( path ) + ".priv"
         else:
             # Invalid path
             raise PhreaknetOSError( "No such file or directory" )
         # Make sure this directory actualy contains a priv file
-        if not os.path.isfile( file ): return False
+        if not os.path.isfile( file ):
+            return False
+
+        # root can do whatever the hell he wants
+        if user == "root": return True
+
         # Store the privs for this directory
         privs = ""
         # Load the privs
@@ -349,59 +369,83 @@ class Host:
         groups = self.get_groups( user )
 
         # Is this user the owner and a group member?
-        if ( user == privs[1] and priv[2] in groups
+        if user == privs[1] and privs[2] in groups:
             # Check owner privs
-            and privs[0][oper] == "-"
+            if ( privs[0][oper] == "-"
             # Check group privs
-            and privs[0][3 + oper] == "-"
+            and  privs[0][3 + oper] == "-"
             # Check other privs
-            and privs[0][6 + oper] == "-" ): return False
+            and  privs[0][6 + oper] == "-" ): return False
         # Is this user just the owner
-        elif ( user == privs[1]
+        elif user == privs[1]:
             # Check owner privs
-            and privs[0][oper] == "-"
+            if ( privs[0][oper] == "-"
             # Check other privs
-            and privs[0][6 + oper] == "-" ): return False
+            and  privs[0][6 + oper] == "-" ): return False
         # Is this user just a member of this path's group?
-        elif ( priv[2] in self.get_groups( user )
+        elif privs[2] in self.get_groups( user ):
             # Check group privs
-            and privs[0][oper] == "-"
+            if ( privs[0][oper] == "-"
             # Check other privs
-            and privs[0][6 + oper] == "-" ): return False
+            and  privs[0][6 + oper] == "-" ): return False
         # User is not the owner or a member, just check other privs
-        elif priv[0][6 + oper] == "-": return False
+        else:
+            if privs[0][6 + oper] == "-": return False
 
         # This user does have permission
         return True
 
+    # Returns a tuple containing two lists, files and directories
+    def list_dir( self, path, user ):
+        # Correct the path
+        path = self.respath( path )
+        # Make sure we can read this directory
+        if not self.path_priv( path, user, 0 ): raise PhreaknetOSError( "Permission denied" )
+        # Verify this is a directory
+        if not os.path.isdir( path ): raise PhreaknetOSError( "Cannot list contents of file" )
+
+        # Walk the path and get the contents of this dir
+        _, dnames, fnames = next( os.walk(path) )
+        # Add these directories
+        dnames.extend( [".", ".."] );
+        # Only return files that we are allowed to view
+        fnames[:] = [fn for fn in fnames if os.path.isfile( path + "/." + fn + ".priv" )]
+        # Only return directorys that we are allowed to view
+        dnames[:] = [dn for dn in dnames if os.path.isfile( path + "/" + dn + "/.priv" )]
+        # Return the results
+        return ( dnames, fnames )
+
     # Dump the contents of a file to a string
-    def read_file( self, file, user ):
+    def read_file( self, path, user ):
+        path = self.respath( path )
         # Make sure we have permission to access this file
-        if not self.path_priv( file, user, 0 ): raise PhreaknetOSError( "Permission denied" )
+        if not self.path_priv( path, user, 0 ): raise PhreaknetOSError( "Permission denied" )
         # Cannot read directories
-        if self.path.isdir( "dir/" + self.hostid + file ): raise PhreaknetOSError( "Is a directory" )
+        if os.path.isdir( path ): raise PhreaknetOSError( "Is a directory" )
 
         # Open the file
-        with open( "dir/" + self.hostid + file ) as fd:
+        with open( path ) as fd:
             # Return the contents
             return fd.read( )
 
     # Dump the contents of a file to an array of strings
-    def read_lines( self, file, user ):
+    def read_lines( self, path, user ):
         # Output variable
         lines = []
         # Get the data
-        data = self.read_file( file, user )
+        data = self.read_file( path, user )
         # Convert data to an array
-        for l in s.splitlines( ):
+        for ln in data.splitlines( ):
             # Strip any whitespace and append
-            lines.append( l.strip( ) )
+            lines.append( ln.strip( ) )
 
         return lines
 
     # Write the contents of data to a file
     # Data must either be a string or an array of strings
-    def write_file( self, file, user, data, append=False ):
+    def write_file( self, path, user, data, append=False ):
+        # Build file path
+        path = self.respath( path )
         # Set the default file mode
         mode = "w"
         # Check if we're in append mode
@@ -409,26 +453,36 @@ class Host:
         # Concatinate arrays of strings
         if not isinstance( data, str ): data = "\n".join( data )
         # Make sure we have permission to access this file
-        if not self.path_priv( file, user, 0 ): raise PhreaknetOSError( "Permission denied" )
-        # Cannot read directories
-        if self.path.isdir( "dir/" + self.hostid + file ): raise PhreaknetOSError( "Is a directory" )
+        if not self.path_priv( path, user, 0 ): raise PhreaknetOSError( "Permission denied" )
+        # Make sure this is in fact a file
+        if not os.path.isfile( path ): raise PhreaknetOSError( "Is a directory" )
         # Open the file
-        with open( "dir/" + self.hostid + file, mode ) as fd:
+        with open( path, mode ) as fd:
             # Write the data
             fd.write( data )
 
     # Append data to a file
-    def append_file( self, file, user, data ):
+    def append_file( self, path, user, data ):
         # Call the write function with append mode
-        return self.write_file( file, user, data, True )
+        return self.write_file( path, user, data, True )
 
     # List all the groups this user is in
     # Group file format:
     # groupName:x:groupID:user0,user1,user2
     # root:x:0:root,architect,underground
     def get_groups( self, user ):
-        # Get the group file
-        glines = self.read_lines( "/sys/group", user )
+        # Get the passwd file, must be done as root to avoid recursion
+        plines = self.read_lines( "/sys/passwd", "root" )
+        # Store the primary group
+        prim = ""
+        # Get this user's primary group
+        for pln in plines:
+            # Split the data
+            pr = pln.split( ":" )
+            # Is this the correct user?
+            if user == pr[0]: prim = pr[3]
+        # Get the group file, must be done as root to avoid recursion
+        glines = self.read_lines( "/sys/group", "root" )
         # Stores all groups the user is in
         groups = []
         # Iterate through the group file
@@ -436,16 +490,16 @@ class Host:
             # Split the data
             gr = gln.split( ":" )
             # Check if this user is a member of the group
-            if user in gr[3].split( "," ):
+            if prim == gr[2] or user in gr[3].split( "," ):
                 # Append group to the list of groups
-                groups.append( gr )
-
-        return group
+                groups.append( gr[0] )
+        # Return the list of groups
+        return groups
 
     # Returns true if this user has an account here
     # Passwd file format:
-    # username:x:userID:groupID:fingerInfo:homeDir:commandShell
-    # architect:x:1021:1020:PhreakNET Dev:/usr/architect:/bin/shell
+    # username:x:userID:groupID:fingerName,fingerMail,fingerStatus,fingerPlag:homeDir:shellDir
+    # architect:x:1021:1020:John Doe,test@123.123.123.123,PhreakNET Dev,Neat plan bro:/usr/architect:/bin/shell
     def check_user( self, user ):
         # Read the password file
         plines = self.read_lines( "/sys/passwd", user )
@@ -472,6 +526,39 @@ class Host:
         # Check that this is the correct password
         return acct.check_pass( password )
 
+    # string  | nuser ... user to add to the system
+    # Account | nuser ... the account to add to this system (faster)
+    # string  | user .... the user preforming this operation
+    # Returns true if successfull
+    def add_user( self, nuser, user ):
+        # Make sure this account even exists
+        if isinstance( nuser, Account ):
+            # We were given an account, so we know it must exist
+            nuser = nuser.username
+        elif Account.find_account( nuser ) is None:
+            # Make sure this account exists
+            return False
+        # Build the new user's passwd file line
+        paswd = "%s:x:%s:%s:,,,:/usr/%s:/bin/shell\n" % (nuser, self.nuid, self.ngid, nuser)
+        # Build the new user's group file line
+        group = "%s:x:%s:\n" % (nuser, self.ngid)
+        # Make sure we can preform this operation
+        if not self.path_priv( "/sys/passwd", user, 1 ): return False
+        if not self.path_priv( "/sys/group",  user, 1 ): return False
+        # Create the user
+        self.append_file( "/sys/passwd", user, paswd )
+        # Increment the new userID
+        self.nuid += 1
+        # Create the group
+        self.append_file( "/sys/group", user, group )
+        # Increment the new groupID
+        self.ngid += 1
+        # Make this user's home directory
+        os.makedirs( "dir/" + self.hostid + "/usr/" + nuser )
+        with open( "dir/" + self.hostid + "/usr/" + nuser + "/.priv", "w" ) as fd: fd.write( "rwx------ " + nuser + " " + nuser )
+        # Return success
+        return True
+
 # This is a generic error that is displayed to the user
 # The first arg must be a string to be displayed
-def PhreaknetOSError( Exception ): pass
+class PhreaknetOSError( Exception ): pass

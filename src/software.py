@@ -47,7 +47,13 @@ class Program:
         # No program with the matching name found
         return None
 
-    def __init__( self, func, user, tty, size, origin, params=[] ):
+    # function           | func ..... starting function for the event loop
+    # string             | user ..... the owner of this process
+    # string             | work ..... this process' current working directory
+    # integer            | tty ...... the TTY id this process belongs to
+    # (integer, integer) | size ..... the width and height of this TTY
+    # (string, integer)  | origin ... the IP and PID of the parent prog
+    def __init__( self, func, user, work, tty, size, origin, params=[] ):
         ### Set by the host when the process is assigned ###
         # Host reference
         self.host = None
@@ -59,7 +65,9 @@ class Program:
         self.name = type( self ).__name__.lower( )
         # Owner of the process
         self.user = user
-        # Processes don't run on ttys
+        # The current working directory
+        self.cwd = work
+        # The TTY of this Process, -1 for no TTY
         self.tty = tty
         # Size of the terminal screen ( width, height )
         self.size = size
@@ -292,9 +300,10 @@ class Program:
             # Continue the loop
             return self.readchar_loop
 
-    # Page data, easy too for reading long files
+    # Page data, easy tool for reading long files
     def pager( self, lines, nfunc=None, cat=False ):
         # No next function was provided
+        # NOTE: has to be done here, cannot be done in method declaration
         if nfunc is None: nfunc = self.kill
         # If the file's short enough just dump it
         if len( lines ) <= self.size[1] or cat:
@@ -419,7 +428,8 @@ class Shell( Program ):
 
     def __init__( self, user, tty, size, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( self.shell, user, tty, size, origin, params )
+        super( ).__init__( self.shell, user, "/usr/" + user,
+                           tty, size, origin, params )
 
         # The default prompt for the command line
         self.sh_prompt = ">"
@@ -427,8 +437,6 @@ class Shell( Program ):
         self.sh_error = "unknown command"
         # Stores arguments for commands
         self.sh_args = []
-        # Stores the current working directory
-        self.sh_cwd = "/usr/" + self.user
 
         # Default command table stores internal commands
         # function | fn   ... function to be run by this command
@@ -465,7 +473,8 @@ class Shell( Program ):
                 return self.sh_ctbl[cmd]["fn"]
             elif pclass is not None:
                 # Command is an external program
-                prg = pclass( self.user, self.tty, self.size, ("127.0.0.1", self.pid), self.sh_args )
+                prg = pclass( self.user, self.cwd, self.tty, self.size,
+                              ("127.0.0.1", self.pid), self.sh_args )
                 # Start the new program and set the destination
                 self.destin = self.host.start( prg )
             else:
@@ -490,32 +499,35 @@ class Shell( Program ):
     def cdir( self ):
         if self.sh_args:
             # Calculate the correct directory
-            sol = os.path.normpath( os.path.join( self.sh_cwd, self.sh_args[0] ) )
+            sol = os.path.normpath( os.path.join( self.cwd, self.sh_args[0] ) )
 
             # Is this path a file?
             if os.path.isfile( "dir/" + self.host.hostid + sol ):
                 self.error( "Not a directory" )
             # Is this path a directory?
             elif os.path.isdir( "dir/" + self.host.hostid + sol ):
-                # Do we have read privs for this directory?
-                if self.host.path_priv( "dir/" + self.host.hostid + sol,
-                                        self.user, 2 ):
-                    # Set our new directory
-                    self.sh_cwd = sol
-                else:
-                    self.error( "Permission denied" )
+                try:
+                    # Do we have read privs for this directory?
+                    if self.host.path_priv( "dir/" + self.host.hostid + sol,
+                                            self.user, 2 ):
+                        # Set our new directory
+                        self.cwd = sol
+                    else:
+                        self.error( "Permission denied" )
+                except PhreaknetOSError as e:
+                    self.error( e.args[0] )
             # Invalid path
             else:
                 self.error( "No such file or directory" )
         else:
             # No path specified, set the working dir to the home dir
-            self.sh_cwd = "/usr/" + self.user
+            self.cwd = "/usr/" + self.user
 
         return self.shell
 
     # Print the current working directory
     def pwd( self ):
-        self.println( self.sh_cwd )
+        self.println( self.cwd )
         return self.shell
 
     # Clear the terminal screen
@@ -526,9 +538,9 @@ class Shell( Program ):
 # Starts a Shell session on a remote host
 class SSH( Program ):
 
-    def __init__( self, user, tty, size, origin, params=[] ):
+    def __init__( self, user, work, tty, size, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( self.ssh, user, tty, size, origin, params )
+        super( ).__init__( self.ssh, user, work, tty, size, origin, params )
 
     # Connect to a remote host and start a shell
     def ssh( self ):
@@ -542,13 +554,14 @@ class SSH( Program ):
                 # Make sure this host has free TTYs
                 if ntty is not None:
                     # Create a new Shell
-                    nsh = Shell( self.user, ntty, self.size, ( self.host.ip, self.pid ) )
+                    nsh = Shell( self.user, ntty, self.size,
+                                 ( self.host.ip, self.pid ) )
                     # Start a shell on the remote host, and set the destination
                     self.destin = dhost.start( nsh )
                 else:
                     self.error( "unable to procure free TTY" )
             else:
-                self.error( "no response from host at " + self.rl_line )
+                self.error( "no response from host at " + self.params[0] )
         else:
             self.error( "usage: ssh <ip address>" )
 
@@ -558,11 +571,20 @@ class SSH( Program ):
 # Prints the contents of a directory
 class LS( Program ):
 
-    def __init__( self, user, tty, size, origin, params=[] ):
+    def __init__( self, user, work, tty, size, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( self.list, user, tty, size, origin, params )
+        super( ).__init__( self.list, user, work, tty, size, origin, params )
 
     def list( self ):
-        pass
-
-        return self.pager( "" )
+        try:
+            # List all the files and directories at the path
+            dnames, fnames = self.host.list_dir( self.cwd, self.user )
+            # Add the slash to the end
+            dnames[:] = [dn + "/" for dn in dnames]
+            # Merge the lists
+            fnames.extend( dnames )
+            # Start the pager
+            return self.pager( sorted(fnames) )
+        except PhreaknetOSError as e:
+            self.error( e.args[0] )
+            return self.kill

@@ -112,10 +112,10 @@ class Server:
             try:
                # Accept the connection
                sock = self.termserv.accept( )
-               # Assign connection a client
-               cnew = TelnetClient( sock )
                # Disable socket blocking
-               cnew[0].setblocking( 0 )
+               sock[0].setblocking( 0 )
+               # Assign connection a client
+               cnew = TelnetClient( self, sock )
                # Append client to array
                self.clients.append( cnew )
                xlog( "Connected to PhreakNET", cnew )
@@ -134,11 +134,13 @@ class Server:
 
 class Client:
 
-    def __init__( self, ip, addr ):
+    def __init__( self, tserv, addr ):
+        # Store a reference to the Terminal Server
+        self.tserv = tserv
         # The IP this user is connecting from
-        self.ip = ""
+        self.ip = addr[0]
         # The port this user is connecting from
-        self.port = 0
+        self.port = addr[1]
         # A reference to this user's gateway machine and shell process
         self.gateway = None
         # A reference to this user's account
@@ -209,46 +211,19 @@ class Client:
                     if not gatehost.stdin( self.gateway[1], msg, True ):
                         # Shell no longer exists
                         self.gateway = None
-                    else:
-                        self.gateway = None
                 else:
-                    # Ignore all data that's not standard ascii
-                    if len( data ) > 2: continue
-                    # Check if we're logged in
-                    if self.account is None:
-                        self.login( data )
-                    else:
-                        self.manager( data )
+                    self.gateway = None
+            else:
+                # Ignore all data that's not standard ascii
+                if len( data ) > 2: continue
+                # Check if we're logged in
+                if self.account is None:
+                    self.login( data )
+                else:
+                    self.manager( data )
 
         # Return true since we're still connected
         return True
-
-    # Process terminal commands sent form the client
-    # Returns true if this was a command string
-    def iac( self, data ):
-        # Process NAWS and record terminal height/width
-        np = data.find( b"\xFF\xFA\x1F" )
-        if np >= 0:
-            # Get the correct offset
-            np += 3
-            # Set width and height (min of 80x24)
-            self.size = ( max( int(data[np    ]) * 256 + int(data[np + 1]), 80 ),
-                          max( int(data[np + 2]) * 256 + int(data[np + 3]), 24 ) )
-
-            # Did we just connect?
-            # Reprint login prompt
-            if self.account is None and self.ac_prompt == 0:
-                self.login_banner( "Welcome to PhreakNET" )
-
-            # Update our gateway's size too
-            if self.gateway is not None:
-                gateshell = Host.find_ip( self.gateway[0] ).get_pid( self.gateway[1] )
-                gateshell.set_size( self.size )
-            # Was a command string
-            return True
-
-        # Not a command String
-        return False
 
     # Print out the login banner
     def login_banner( self, msg ):
@@ -444,6 +419,8 @@ class Client:
             if data.find( "\r" ) >= 0:
                 # Make a new gateway
                 nhst = Host( "Gateway_" + str( randint( 100000, 999999 ) ) )
+                # Add our account to this gateway
+                nhst.add_user( self.account, "root" )
                 # Log the creation
                 xlog( "Requested a new gateway: " + nhst.hostname + "@" + nhst.ip, self )
                 # Copy the IP address
@@ -458,14 +435,24 @@ class Client:
                 # Is this tty already in use?
                 for proc in gatehost.ptbl:
                     # Check if this proc is our TTY
-                    if hasattr( proc, 'tty' ) and proc.tty == ntty:
-                        self.stdout( ansi_clear( ) + "*** RECOVERED PREVIOUS SESSION ***\r\n" )
-                        # Reset the print delay timer
-                        proc.out_last = time.time( )
-                        # Output the scrollback buffer
-                        self.stdout( proc.out_back )
-                        # Connect this client to the shell
-                        self.gateway = ( gatehost.ip, proc.pid )
+                    if type(proc) is PhreakShell and proc.tty == ntty:
+                        # Make sure this Shell isn't in use
+                        for cli in self.tserv.clients:
+                            if cli.gateway == ( gatehost.ip, proc.pid ):
+                                # Found another client logged into our shell
+                                break
+                        else:
+                            # Shell not in use
+                            self.stdout( ansi_clear( ) +
+                                "*** RECOVERED PREVIOUS SESSION ***\r\n" )
+                            # Reset the print delay timer
+                            proc.out_last = time.time( )
+                            # Output the scrollback buffer
+                            self.stdout( proc.out_back )
+                            # Connect this client to the shell
+                            self.gateway = ( gatehost.ip, proc.pid )
+                            break
+                        # Shell is already in use, abort
                         break
                 # TTY is not in use start a new shell
                 else:
@@ -535,13 +522,13 @@ class Client:
 # The specific client for Telnet connections
 class TelnetClient( Client ):
 
-    def __init__ ( self, conn ):
-        # Init super, with the IP and Port
-        super( ).__init__( conn[1][0], conn[1][1] )
+    def __init__ ( self, tserv, conn ):
         # Extract the socket from the conn
         self.sock = conn[0]
         # Send terminal initialization string
         self.sock.send( b"\xFF\xFD\x22\xFF\xFB\x01\xFF\xFB\x03\xFF\xFD\x1F" )
+        # Init super last, with the IP and Port
+        super( ).__init__( tserv, conn[1] )
 
     # Send data to the terminal
     def stdout( self, msg ):
@@ -552,6 +539,7 @@ class TelnetClient( Client ):
             self.sock.send( msg )
         except BrokenPipeError:
             pass
+
 
     # Handle input
     def stdin( self ):
@@ -574,6 +562,40 @@ class TelnetClient( Client ):
                 # Return the keypresses
                 return msg
 
+    # Process terminal commands sent form the client
+    # Returns true if this was a command string
+    def iac( self, data ):
+        # Process NAWS and record terminal height/width
+        np = data.find( b"\xFF\xFA\x1F" )
+        if np >= 0:
+            # Get the correct offset
+            np += 3
+            # Set width and height (min of 80x24)
+            self.size = ( max( int(data[np    ]) * 256 + int(data[np + 1]), 80 ),
+                          max( int(data[np + 2]) * 256 + int(data[np + 3]), 24 ) )
+
+            # Did we just connect?
+            # Reprint login prompt
+            if self.account is None and self.ac_prompt == 0:
+                self.login_banner( "Welcome to PhreakNET" )
+
+            # Update our gateway's size too
+            if self.gateway is not None:
+                gateshell = Host.find_ip( self.gateway[0] ).get_pid( self.gateway[1] )
+                gateshell.set_size( self.size )
+            # Was a command string
+            return True
+
+        # Not a command String
+        return False
+
+    # Handle being killed
     def kill( self ):
         # Close the connection, terminate this client
         if super( ).kill( ): self.sock.close( )
+
+# The specific Client for SSH connections
+class SSHClient( Client ):
+
+     def __init__( self ):
+         pass

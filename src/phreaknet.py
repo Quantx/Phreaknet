@@ -52,10 +52,8 @@ class PhreakShell( Shell ):
                 self.out_back += data[0]
                 # Cull out the scrollback
                 while self.out_back.count( "\n" ) > self.size[1]:
-                    # Get the position of the end of the first line
-                    rpos = self.out_back.find( "\n" )
-                    # Splice out the first line
-                    self.out_back = self.out_back[rpos:]
+                    # Remove the first line in the buffer
+                    self.out_back = self.out_back.split("\n", 1)[-1]
                 # Return data
                 return data[0]
             # Not ready to print, keep waiting
