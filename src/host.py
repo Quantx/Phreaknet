@@ -93,23 +93,23 @@ class Host:
         # Build the USR directory
         os.makedirs( "dir/" + self.hostid + "/usr" )
 
-        # Build the .priv files                           owner, group, other = perms    owner group
-        with open( "dir/" + self.hostid + "/.priv",     "w" ) as fd: fd.write( "r-xr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/sys/.priv", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/bin/.priv", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/log/.priv", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
-        with open( "dir/" + self.hostid + "/usr/.priv", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
+        # Build the .inode files                           owner, group, other = perms    owner group
+        with open( "dir/" + self.hostid + "/.inode",     "w" ) as fd: fd.write( "r-xr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/sys/.inode", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/bin/.inode", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/log/.inode", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
+        with open( "dir/" + self.hostid + "/usr/.inode", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
 
         # Build the passwd file
         with open( "dir/" + self.hostid + "/sys/passwd",          "w" ) as fd: fd.write( "root:x:0:0:root,,,:/usr/root:/bin/shell\n" )
-        with open( "dir/" + self.hostid + "/sys/.passwd.priv",     "w" ) as fd: fd.write( "rw-r--r-- root root" )
+        with open( "dir/" + self.hostid + "/sys/.passwd.inode",     "w" ) as fd: fd.write( "rw-r--r-- root root" )
         # Build the group file
         with open( "dir/" + self.hostid + "/sys/group",           "w" ) as fd: fd.write( "root:x:0:\n" )
-        with open( "dir/" + self.hostid + "/sys/.group.priv",      "w" ) as fd: fd.write( "rw-r--r-- root root" )
+        with open( "dir/" + self.hostid + "/sys/.group.inode",      "w" ) as fd: fd.write( "rw-r--r-- root root" )
 
         # Build the user directory for the root account
         os.makedirs( "dir/" + self.hostid + "/usr/root" )
-        with open( "dir/" + self.hostid + "/usr/root/.priv", "w" ) as fd: fd.write( "rwx------ root root" )
+        with open( "dir/" + self.hostid + "/usr/root/.inode", "w" ) as fd: fd.write( "rwx------ root root" )
 
         ### Process table ###
         # Stores all the processes running on this host
@@ -254,7 +254,7 @@ class Host:
             # Abort if nothing to update
             if not self.ptbl: return
             # Fetch next process
-            proc = self.ptbl.pop( 0 )
+            proc = self.ptbl[0]
             # Increment process counter
             i += 1
             # Make sure process isn't attached
@@ -264,13 +264,16 @@ class Host:
                 # Add running processes to the end of the queue
                 # Processes with a TTY set to None were created in error
                 if proc.func is not None or proc.tty is None:
-                   self.ptbl.append( proc )
+                   # Rotate the list
+                   self.ptbl.append( self.ptbl.pop( 0 ) )
                 else:
                     # Ensure the process is dead
                     proc.kill( )
+                    # Remove the dead program
+                    self.ptbl.pop( 0 )
             else:
-                # Program is attached to another program standby for now
-                self.ptbl.append( proc )
+                # This process isn't actively running, rotate the list
+                self.ptbl.append( self.ptbl.pop( 0 ) )
 
     # Startup this host
     def startup( self, safemode=False ):
@@ -283,6 +286,8 @@ class Host:
 
     # Shutdown this host
     def shutdown( self ):
+        # Terminate all processes
+        for prc in self.ptbl: prc.kill( )
         # Mark this host as offline
         self.online = False
 
@@ -306,11 +311,11 @@ class Host:
         path = self.respath( path )
         # Are we allowed to edit this directory
         if not self.path_priv( path, user, 1 ): return False
-        # Get the correct priv file
+        # Get the correct inode file
         if os.path.isdir( path ):
-            path += "/.priv"
+            path += "/.inode"
         elif os.path.isfile( path ):
-            path = os.path.dirname( path ) + "/.priv"
+            path = os.path.dirname( path ) + "/.inode"
         else:
             return False
 
@@ -326,7 +331,7 @@ class Host:
         # Create the new priv string
         newp = priv + oldp[:9]
 
-        # Write priv file
+        # Write indoe file
         with open( path, "w" ) as dp:
             dp.write( newp )
 
@@ -340,16 +345,16 @@ class Host:
         # Check if we're accessing a file or a directory
         if os.path.isdir( path ):
             # Locate the directorie's priv file
-            file = path + "/.priv"
+            file = path + "/.inode"
         elif os.path.isfile( path ):
             # Update path
             basepath = os.path.dirname( path )
-            # Get a path to the this file's .filename.priv partner
-            file = basepath + "/." + os.path.basename( path ) + ".priv"
+            # Get a path to the this file's .filename.inode partner
+            file = basepath + "/." + os.path.basename( path ) + ".inode"
         else:
             # Invalid path
             raise PhreaknetOSError( "No such file or directory" )
-        # Make sure this directory actualy contains a priv file
+        # Make sure this directory actualy contains a inode file
         if not os.path.isfile( file ):
             return False
 
@@ -409,9 +414,9 @@ class Host:
         # Add these directories
         dnames.extend( [".", ".."] );
         # Only return files that we are allowed to view
-        fnames[:] = [fn for fn in fnames if os.path.isfile( path + "/." + fn + ".priv" )]
+        fnames[:] = [fn for fn in fnames if os.path.isfile( path + "/." + fn + ".inode" )]
         # Only return directorys that we are allowed to view
-        dnames[:] = [dn for dn in dnames if os.path.isfile( path + "/" + dn + "/.priv" )]
+        dnames[:] = [dn for dn in dnames if os.path.isfile( path + "/" + dn + "/.inode" )]
         # Return the results
         return ( dnames, fnames )
 
@@ -555,7 +560,7 @@ class Host:
         self.ngid += 1
         # Make this user's home directory
         os.makedirs( "dir/" + self.hostid + "/usr/" + nuser )
-        with open( "dir/" + self.hostid + "/usr/" + nuser + "/.priv", "w" ) as fd: fd.write( "rwx------ " + nuser + " " + nuser )
+        with open( "dir/" + self.hostid + "/usr/" + nuser + "/.inode", "w" ) as fd: fd.write( "rwx------ " + nuser + " " + nuser )
         # Return success
         return True
 

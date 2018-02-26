@@ -386,6 +386,10 @@ class Program:
     def error( self, msg, delay=0 ):
         self.println( "%" + msg, delay )
 
+    # Ring this user's terminal bell
+    def beep( self, delay=0 ):
+        self.printl( "\a", delay )
+
     # Print a message with a delay between each char
     def sprintl( self, msg, delay=0 ):
         # Ignore empty messages
@@ -394,7 +398,7 @@ class Program:
             self.stdout( ( msg[0], delay, 0 ) )
             # Send the rest with no lag
             for c in msg[1:]:
-                # The -1 disables system lag
+                # The -1 1disables system lag
                 self.stdout( ( c, delay, -1 ) )
 
     # Print a message with a delay between each char followed by a newline
@@ -586,5 +590,73 @@ class LS( Program ):
             # Start the pager
             return self.pager( sorted(fnames) )
         except PhreaknetOSError as e:
+            # An in-game error occured, print it out
             self.error( e.args[0] )
             return self.kill
+
+# List the process tabke
+class PS( Program ):
+
+    def __init__( self, user, work, tty, size, origin, params=[] ):
+        super( ).__init__( self.list, user, work, tty, size, origin, params )
+
+    def list( self ):
+        # Print the header
+        self.println( "  PID TTY          TIME CMD" )
+
+        # Print out each entry of the PID sorted table
+        for prc in sorted(self.host.ptbl, key=lambda x: x.pid):
+            self.println( "%5s pts/%-4s 00:00:00 %s" % ( prc.pid, prc.tty, prc.name ) )
+
+        # Terminate the program
+        return self.kill
+
+# List information about a host
+class Hostname( Program ):
+
+    def __init__( self, user, work, tty, size, origin, params=[] ):
+        super( ).__init__( self.info, user, work, tty, size, origin, params )
+
+    def info( self ):
+        # Print all relevant INFO regarding this host
+        self.println( "Hostname: " + self.host.hostname )
+        self.println( "IP Addr: " + self.host.ip )
+        self.println( "Phone Num: " + self.host.phone )
+        self.println( "Host ID: " + self.host.hostid )
+
+        # Terminate ourselves
+        return self.kill
+
+# Terminate a process
+class Kill( Program ):
+
+    def __init__( self, user, work, tty, size, origin, params=[] ):
+        super( ).__init__( self.murder, user, work, tty, size, origin, params )
+
+    def murder( self ):
+        # Did the user specify a PID?
+        if self.params:
+            # Make sure we were given a job ID
+            try:
+                # Convert the input to an integer
+                cpid = int( float( self.params[0] ) )
+                # Make sure this PID is 2 bytes
+                if cpid < 0 or cpid > 65535: raise ValueError( "Not 2 bytes" )
+                # Loop through all process running on this host
+                for prc in self.host.ptbl:
+                    # Find a process with the specified PID
+                    if cpid == prc.pid:
+                        # Instruct that program to kill itself
+                        prc.func = prc.kill
+                        break
+                else:
+                    # No process with that ID
+                    self.error( "no such process" )
+            except ValueError:
+                # We were not given a valid PID
+                self.error( "arguments must be process or job IDs" )
+        else:
+            self.error( "usage: kill <pid>" )
+
+        # We're done here
+        return self.kill

@@ -46,13 +46,21 @@ def xlog( msg, cli=None, hst=None ):
 # Move the cursor to a postion on the screen
 # Can either be a set of coords or a tuple
 # (0, 0) is the top left cell
-def ansi_move( row, col=None ):
+def ansi_move( *args ):
     # Check if one or two args are given
-    if col is None:
+    if len( args ) == 1:
         # Only one arg, so it must be a tuple
-        return "\x1B[%s;%sH" % ( row[0], row[1] )
-    # Two args given, treat each as an int
-    return "\x1B[%s;%sH" % ( row, col )
+        return "\x1B[%s;%sH" % ( args[0][0], args[0][1] )
+    elif len( args ) == 2:
+        # Two args given, treat each as an int
+        return "\x1B[%s;%sH" % ( args[0], args[1] )
+    else:
+        # No idea what args were given
+        return ""
+
+# Ring the bell
+def ansi_bell( )
+    return "\a"
 
 # Move the cursor to the top left without clearing the screen
 def ansi_home( ):
