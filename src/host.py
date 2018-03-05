@@ -307,6 +307,8 @@ class Host:
     # R  P  R
     # rwxrwxrwx
     def set_priv( self, path, user, priv ):
+        # Extract the username from the account
+        if isinstance( user, Account ): user = user.username
         # Fix the path
         path = self.respath( path )
         # Are we allowed to edit this directory
@@ -340,6 +342,8 @@ class Host:
     # Returns true if this user has privlage to preform this operation
     # Oper: Read = 0, Write = 1, Execute = 2
     def path_priv( self, path, user, oper ):
+        # Extract the username from the account
+        if isinstance( user, Account ): user = user.username
         # Fix the path
         path = self.respath( path )
         # Check if we're accessing a file or a directory
@@ -402,6 +406,8 @@ class Host:
 
     # Returns a tuple containing two lists, files and directories
     def list_dir( self, path, user ):
+        # Extract the username from the account
+        if isinstance( user, Account ): user = user.username
         # Correct the path
         path = self.respath( path )
         # Make sure we can read this directory
@@ -422,6 +428,9 @@ class Host:
 
     # Dump the contents of a file to a string
     def read_file( self, path, user ):
+        # Extract the username from the account
+        if isinstance( user, Account ): user = user.username
+        # Fix the path
         path = self.respath( path )
         # Make sure we have permission to access this file
         if not self.path_priv( path, user, 0 ): raise PhreaknetOSError( "Permission denied" )
@@ -449,6 +458,8 @@ class Host:
     # Write the contents of data to a file
     # Data must either be a string or an array of strings
     def write_file( self, path, user, data, append=False ):
+        # Extract the username from the account
+        if isinstance( user, Account ): user = user.username
         # Build file path
         path = self.respath( path )
         # Set the default file mode
@@ -476,6 +487,8 @@ class Host:
     # groupName:x:groupID:user0,user1,user2
     # root:x:0:root,architect,underground
     def get_groups( self, user ):
+        # Extract the username from the account
+        if isinstance( user, Account ): user = user.username
         # Get the passwd file, must be done as root to avoid recursion
         plines = self.read_lines( "/sys/passwd", "root" )
         # Store the primary group
@@ -506,6 +519,8 @@ class Host:
     # username:x:userID:groupID:fingerName,fingerMail,fingerStatus,fingerPlag:homeDir:shellDir
     # architect:x:1021:1020:John Doe,test@123.123.123.123,PhreakNET Dev,Neat plan bro:/usr/architect:/bin/shell
     def check_user( self, user ):
+        # Extract the username from the account
+        if isinstance( user, Account ): user = user.username
         # Read the password file
         plines = self.read_lines( "/sys/passwd", user )
         # Iterate through each user
@@ -521,21 +536,25 @@ class Host:
     # Returns false if this user does not exist
     # Returns false if this user does not have an account
     # Returns false if the password does not match
-    def check_pass( self, username, password ):
-        # Find the account that matches this username
-        acct = Account.find_account( username )
-        # Check that this account exists
-        if acct is None: return False
+    def check_pass( self, user, password ):
+        # Did we get a string or an Account
+        if not isinstance( user, Account ):
+            # Find the account that matches this username
+            user = Account.find_account( user )
+            # Check that this account exists
+            if acct is None: return False
         # Check that this user has an account here
-        if not self.check_user( username ): return False
+        if not self.check_user( user ): return False
         # Check that this is the correct password
-        return acct.check_pass( password )
+        return user.check_pass( password )
 
     # string  | nuser ... user to add to the system
     # Account | nuser ... the account to add to this system (faster)
     # string  | user .... the user preforming this operation
     # Returns true if successfull
     def add_user( self, nuser, user ):
+        # Extract the username from the account
+        if isinstance( user, Account ): user = user.username
         # Make sure this account even exists
         if isinstance( nuser, Account ):
             # We were given an account, so we know it must exist

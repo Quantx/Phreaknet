@@ -32,6 +32,7 @@ class Account:
 
     # Returns the account with the specified username
     # Returns none if no such account exists
+    @staticmethod
     def find_account( username ):
         for acct in Account.accounts:
             if acct.username == username:
@@ -48,6 +49,8 @@ class Account:
         self.first = time.time( )
         # The IP adresses of this account's gateway
         self.gateway = ""
+        # 0=Normal user, 1=Operator, 2=Admin
+        self.phreakpriv = 0
 
         # Add us to the list of accounts
         Account.accounts.append( self )
@@ -76,7 +79,7 @@ class Account:
     # THIS IS A SLOW FUNCTION, use it sparingly
     def hash_pass( self, pwd ):
         # Make sure the request is reasonable
-        if len( pwd ) > 64: return b""
+        if len( pwd ) > 64: raise PassOverflow(pwd,len(pwd))
         # Password hashing function, with sha512
         return pbkdf2_hmac( 'sha512',
                             # Encode the password into utf-8
@@ -85,3 +88,14 @@ class Account:
                             self.passsalt,
                             # Use 100,000 rounds for security
                             100000 )
+
+    # Returns true if this user is an Operator or Admin
+    def is_oper( self ):
+        return self.phreakpriv > 0
+
+    # Returns true if this user is an Admin
+    def is_admin( self ):
+        return self.phreakpriv > 1
+
+# Raised when trying to hash a password that is too long
+class PassOverflow( Exception ): pass

@@ -59,7 +59,7 @@ def ansi_move( *args ):
         return ""
 
 # Ring the bell
-def ansi_bell( )
+def ansi_bell( ):
     return "\a"
 
 # Move the cursor to the top left without clearing the screen
