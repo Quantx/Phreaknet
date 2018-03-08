@@ -70,6 +70,10 @@ def ansi_home( ):
 def ansi_clear( ):
     return "\x1B[2J\x1B[H"
 
+# Clear the current line
+def ansi_clear_line( ):
+    return "\x1B[2K\r"
+
 # Invert the foreground and background colors for some text
 def ansi_invert( msg ):
     return "\x1B[7M%s\x1B[27M" % msg

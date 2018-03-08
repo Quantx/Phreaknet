@@ -14,6 +14,7 @@ from formating import *
 from account import *
 from host import *
 from software import *
+from hacksoft import *
 from phreaknet import *
 # Networking should be last
 from networking import *

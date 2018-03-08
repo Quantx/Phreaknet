@@ -3,7 +3,7 @@
 ####################################
 # Architect & Underground (c) 2017 #
 #                                  #
-# Shell and command processing     #
+# General purpose system programs  #
 ####################################
 
 from init import *
@@ -188,15 +188,16 @@ class Program:
         ### Process packet ###
         # Process the entire buff
         while self.rl_buff:
-            # Pop the first char from the buff
-            data = self.rl_buff.pop( 0 )
+            # Look at the first keypress in the buffer
+            data = self.rl_buff[0]
             # Check if this packet can be read yet
             if time.time( ) >= self.rl_timer + data[1] + max( data[2], 0 ):
+                # Pop the keypress from the buffer
+                self.rl_buff.pop( 0 )
                 # Update the timer
                 self.rl_timer = time.time( )
             else:
                 # Not ready to proccess yet
-                self.rl_buff.insert( 0, data )
                 return self.readline_loop
             # Extract the keypress
             key = data[0]
@@ -246,10 +247,11 @@ class Program:
     # Get exactly one char from the client
     # function | nfunc .... the function to execute after a key is pressed
     # string   | prompt ... the prompt to display to the client
+    # list     | filter ... which chars are allowed to be pressed
     # boolean  | purge .... discard existing input data in the buffer
     def readchar( self, nfunc, prompt="?", filter=[], purge=True ):
         # Clear stdin / stdout
-        self.rl_buff = ""
+        self.rl_line = ""
         if purge: del self.rl_buff[:]
         # Set filter chars
         self.rl_filter = filter
@@ -264,18 +266,20 @@ class Program:
 
     # Private, do not call
     def readchar_loop( self ):
+        # Print the prompt
+        self.printl( ansi_clear_line( ) + self.rl_prompt )
         # Check if the buffer has data in it
         if self.rl_buff:
-            # Pop one keypress and store it in the output
-            data = self.rl_buff.pop( 0 )
-            # Check if it's time to print
-            if time.time( ) >= self.out_timer + data[1] + max( data[2], 0 ):
+            # Look at the first keypress and store it in the output
+            data = self.rl_buff[0]
+            # Check if it's time to read the next packet
+            if time.time( ) >= self.rl_timer + data[1] + max( data[2], 0 ):
+                # Remove the data
+                self.rl_buff.pop( 0 )
                 # Update the timer
                 self.rl_timer = time.time( )
             # Not ready to print, keep waiting
             else:
-                # Put the data back
-                self.rl_buff.insert( 0, data )
                 return self.readchar_loop
 
             # Extract keypress
@@ -286,11 +290,13 @@ class Program:
             if key in readchar_alias: key = readchar_alias[key]
 
             # Filter out any incorrect key presses
-            if len( self.rl_filter ) > 0 and key not in self.rl_filter:
+            if self.rl_filter and key not in self.rl_filter:
                 return self.readchar_loop
 
             # Store the keypress
             self.rl_line = key
+            # Print the keypress
+            self.println( key )
             # Return the next function
             return self.rl_nfunc
         # No data to read

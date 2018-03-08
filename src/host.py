@@ -518,9 +518,11 @@ class Host:
     # Passwd file format:
     # username:x:userID:groupID:fingerName,fingerMail,fingerStatus,fingerPlag:homeDir:shellDir
     # architect:x:1021:1020:John Doe,test@123.123.123.123,PhreakNET Dev,Neat plan bro:/usr/architect:/bin/shell
-    def check_user( self, user ):
+    # string or Account | cuser ... The user to check
+    # string or Account | user .... The user preforming the check
+    def check_user( self, cuser, user ):
         # Extract the username from the account
-        if isinstance( user, Account ): user = user.username
+        if isinstance( cuser, Account ): cuser = cuser.username
         # Read the password file
         plines = self.read_lines( "/sys/passwd", user )
         # Iterate through each user
@@ -528,7 +530,7 @@ class Host:
             # Splite each line on the dividing char
             acct = acct.split( ":" )
             # Check if thie is the right account
-            if acct[0] == user: return True
+            if acct[0] == cuser: return True
         # Account not found
         return False
 
@@ -536,15 +538,18 @@ class Host:
     # Returns false if this user does not exist
     # Returns false if this user does not have an account
     # Returns false if the password does not match
-    def check_pass( self, user, password ):
+    # string or Account | cuser ...... The user to check
+    # string            | password ... The password to check
+    # string or Account | user ....... The user preforming the check
+    def check_pass( self, cuser, password, user ):
         # Did we get a string or an Account
-        if not isinstance( user, Account ):
+        if not isinstance( cuser, Account ):
             # Find the account that matches this username
-            user = Account.find_account( user )
+            user = Account.find_account( cuser )
             # Check that this account exists
             if acct is None: return False
         # Check that this user has an account here
-        if not self.check_user( user ): return False
+        if not self.check_user( cuser, user ): return False
         # Check that this is the correct password
         return user.check_pass( password )
 
@@ -553,6 +558,8 @@ class Host:
     # string  | user .... the user preforming this operation
     # Returns true if successfull
     def add_user( self, nuser, user ):
+        # Make sure this account doesn't already exist
+        if self.check_user( nuser, user ): return False
         # Extract the username from the account
         if isinstance( user, Account ): user = user.username
         # Make sure this account even exists
