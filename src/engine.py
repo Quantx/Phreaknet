@@ -74,7 +74,5 @@ if __name__ == "__main__":
     try:
         main( )
     except KeyboardInterrupt:
-        # Mask the ^C print out
-        sys.stdout.write( "\b\b  \b\b" )
         # Quit the program
         sys.exit( 0 )

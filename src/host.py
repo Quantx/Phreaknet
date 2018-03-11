@@ -44,6 +44,19 @@ class Host:
             else:
                 return ip
 
+    @staticmethod
+    def new_id( ):
+        # Loop until we get an unused ID
+        while True:
+            # Generate a random 16 digit string
+            id = "".join([random.choice(string.ascii_letters + string.digits) for n in range(16)])
+            # Make sure the ID is unused
+            for h in Host.hosts:
+                if h.hostid == id:
+                    break
+            else:
+                return id
+
     # Load all hosts from disk
     @staticmethod
     def load( ):
@@ -60,7 +73,7 @@ class Host:
 
     def __init__( self, name ):
         # The unique ID of this host
-        self.hostid = "".join([random.choice(string.ascii_letters + string.digits) for n in range(16)])
+        self.hostid = Host.new_id( )
 
         ### Host info ###
         # Name of the host

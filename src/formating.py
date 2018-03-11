@@ -41,7 +41,7 @@ def xlog( msg, cli=None, hst=None ):
     # Add the msg to the output
     out += msg + "\r\n"
     # Print the output
-    sys.stdout.write( out )
+    sys.stdout.write( ansi_clear_line( ) + out )
 
 # Move the cursor to a postion on the screen
 # Can either be a set of coords or a tuple
