@@ -457,7 +457,7 @@ class Client:
                 # TTY is not in use start a new shell
                 else:
                     # Initialize a new shell
-                    nsh = PhreakShell( self.account, ntty, self.size )
+                    nsh = PhreakShell( self.account.username, ntty, self.size )
                     # Start the shell on the new host, and set the gateway
                     self.gateway = gatehost.start( nsh )
             # Did the user press backspace

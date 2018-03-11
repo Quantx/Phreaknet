@@ -48,12 +48,12 @@ class Program:
         return None
 
     # function           | func ..... starting function for the event loop
-    # Account             | acct ..... the owner of this process
+    # string             | user ..... the owner of this process
     # string             | work ..... this process' current working directory
     # integer            | tty ...... the TTY id this process belongs to
     # (integer, integer) | size ..... the width and height of this TTY
     # (string, integer)  | origin ... the IP and PID of the parent prog
-    def __init__( self, func, acct, work, tty, size, origin, params=[] ):
+    def __init__( self, func, user, work, tty, size, origin, params=[] ):
         ### Set by the host when the process is assigned ###
         # Host reference
         self.host = None
@@ -64,7 +64,7 @@ class Program:
         # Name of the process
         self.name = type( self ).__name__.lower( )
         # Owner of the process
-        self.acct = acct
+        self.user = user
         # The current working directory
         self.cwd = work
         # The TTY of this Process, -1 for no TTY
@@ -212,6 +212,7 @@ class Program:
             elif key == "^C":
                 # Eat the CTRL+C
                 if self.rl_afunc is not None:
+                    self.println( "^C" )
                     return self.rl_afunc
             # Backspace key pressed
             elif ( key == "^H" or key == "\x7F" ) and self.rl_cpos > 0:
@@ -436,9 +437,9 @@ class Shell( Program ):
 
     help = "shell||start a sh"
 
-    def __init__( self, acct, tty, size, origin, params=[] ):
+    def __init__( self, user, tty, size, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( self.shell, acct, "/usr/" + acct.username,
+        super( ).__init__( self.shell, user, "/usr/" + user,
                            tty, size, origin, params )
 
         # The default prompt for the command line
@@ -483,7 +484,7 @@ class Shell( Program ):
                 return self.sh_ctbl[cmd]["fn"]
             elif pclass is not None:
                 # Command is an external program
-                prg = pclass( self.acct, self.cwd, self.tty, self.size,
+                prg = pclass( self.user, self.cwd, self.tty, self.size,
                               ("127.0.0.1", self.pid), self.sh_args )
                 # Start the new program and set the destination
                 self.destin = self.host.start( prg )
@@ -519,7 +520,7 @@ class Shell( Program ):
                 try:
                     # Do we have read privs for this directory?
                     if self.host.path_priv( "dir/" + self.host.hostid + sol,
-                                            self.acct, 2 ):
+                                            self.user, 2 ):
                         # Set our new directory
                         self.cwd = sol
                     else:
@@ -531,7 +532,7 @@ class Shell( Program ):
                 self.error( "No such file or directory" )
         else:
             # No path specified, set the working dir to the home dir
-            self.cwd = "/usr/" + self.acct
+            self.cwd = "/usr/" + self.user
 
         return self.shell
 
@@ -548,9 +549,9 @@ class Shell( Program ):
 # Starts a Shell session on a remote host
 class SSH( Program ):
 
-    def __init__( self, acct, work, tty, size, origin, params=[] ):
+    def __init__( self, user, work, tty, size, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( self.ssh, acct, work, tty, size, origin, params )
+        super( ).__init__( self.ssh, user, work, tty, size, origin, params )
 
     # Connect to a remote host and start a shell
     def ssh( self ):
@@ -567,7 +568,7 @@ class SSH( Program ):
                     hname = self.params[0]
                     if dhost.hostname: hname = dhost.hostname
                     # Get the user's password
-                    return self.readline( self.login, self.acct.username + "@"
+                    return self.readline( self.login, self.user + "@"
                         + hname + "'s password: ", self.kill, True )
                 else:
                     self.error( "unable to procure free TTY" )
@@ -584,10 +585,10 @@ class SSH( Program ):
         # Resolve the remote host form IP
         dhost = self.host.resolve( self.params[0] )
         # Check the password
-        if dhost.check_pass( self.acct, self.rl_line ):
-            self.println( "Logged in as user " + self.acct.username.upper() )
+        if dhost.check_pass( self.user, self.rl_line, "root" ):
+            self.println( "Logged in as user " + self.user.upper() )
             # Create a new shell
-            nsh = Shell( self.acct, self.ssh_ntty, self.size,
+            nsh = Shell( self.user, self.ssh_ntty, self.size,
                 ( self.host.ip, self.pid ) )
             # Start a shell on the remote host, and set the destination
             self.destin = dhost.start( nsh )
@@ -601,14 +602,14 @@ class SSH( Program ):
 # Prints the contents of a directory
 class LS( Program ):
 
-    def __init__( self, acct, work, tty, size, origin, params=[] ):
+    def __init__( self, user, work, tty, size, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( self.list, acct, work, tty, size, origin, params )
+        super( ).__init__( self.list, user, work, tty, size, origin, params )
 
     def list( self ):
         try:
             # List all the files and directories at the path
-            dnames, fnames = self.host.list_dir( self.cwd, self.acct )
+            dnames, fnames = self.host.list_dir( self.cwd, self.user )
             # Add the slash to the end
             dnames[:] = [dn + "/" for dn in dnames]
             # Merge the lists
@@ -623,8 +624,8 @@ class LS( Program ):
 # List the process tabke
 class PS( Program ):
 
-    def __init__( self, acct, work, tty, size, origin, params=[] ):
-        super( ).__init__( self.list, acct, work, tty, size, origin, params )
+    def __init__( self, user, work, tty, size, origin, params=[] ):
+        super( ).__init__( self.list, user, work, tty, size, origin, params )
 
     def list( self ):
         # Print the header
@@ -640,17 +641,28 @@ class PS( Program ):
 # List information about a host
 class Hostname( Program ):
 
-    def __init__( self, acct, work, tty, size, origin, params=[] ):
-        super( ).__init__( self.info, acct, work, tty, size, origin, params )
+    def __init__( self, user, work, tty, size, origin, params=[] ):
+        super( ).__init__( self.info, user, work, tty, size, origin, params )
 
     def info( self ):
-        # Print all relevant INFO regarding this host
+        # Print the hostname
         self.println( self.host.hostname )
-        self.println( self.host.ip )
-        self.println( self.host.phone )
+        # Does this host have an IP address assigned?
+        if self.host.ip:
+            self.println( self.host.ip )
+        else:
+            self.println( "No IP address" )
+        # Does this host have a Phone number assigned?
+        if self.host.phone:
+            self.println( self.host.phone )
+        else:
+            self.println( "No Phone number" )
 
         # Only Admins should be able to see this
-        if self.acct.is_admin( ): self.println( self.host.hostid )
+        acct = Account.find_account( self.user )
+        # Make sure account exists and account is Admin
+        if acct is not None and acct.is_admin( ):
+             self.println( self.host.hostid )
 
         # Terminate ourselves
         return self.kill
@@ -658,8 +670,8 @@ class Hostname( Program ):
 # Terminate a process
 class Kill( Program ):
 
-    def __init__( self, acct, work, tty, size, origin, params=[] ):
-        super( ).__init__( self.murder, acct, work, tty, size, origin, params )
+    def __init__( self, user, work, tty, size, origin, params=[] ):
+        super( ).__init__( self.murder, user, work, tty, size, origin, params )
 
     def murder( self ):
         # Did the user specify a PID?
@@ -687,4 +699,26 @@ class Kill( Program ):
             self.error( "usage: kill <pid>" )
 
         # We're done here
+        return self.kill
+
+# Make a new directory
+class Mkdir( Program ):
+
+    def __init__( self, user, work, tty, size, origin, params=[] ):
+        # Pass args to parent
+        super( ).__init__( self.create, user, work, tty, size, origin, params )
+
+    # Create the directory
+    def create( self ):
+        # Did the user specify a directory to make
+        if self.params:
+            # Create the actual directory
+            os.mkdir( "dir/" + self.host.hostid + self.cwd + "/" + self.params[0] )
+            # Build the inode file with default privs
+            with open( "dir/" + self.host.hostid + self.cwd + "/" + self.params[0] + "/.inode", "w" ) as fd:
+                fd.write( "rwxrwxr-x " + self.user + " " + self.user )
+        else:
+            # No params were given
+            self.error( "missing operand" )
+
         return self.kill

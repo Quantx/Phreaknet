@@ -101,11 +101,11 @@ class Host:
         with open( "dir/" + self.hostid + "/usr/.inode", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
 
         # Build the passwd file
-        with open( "dir/" + self.hostid + "/sys/passwd",          "w" ) as fd: fd.write( "root:x:0:0:root,,,:/usr/root:/bin/shell\n" )
-        with open( "dir/" + self.hostid + "/sys/.passwd.inode",     "w" ) as fd: fd.write( "rw-r--r-- root root" )
+        with open( "dir/" + self.hostid + "/sys/passwd", "w" ) as fd: fd.write( "root:x:0:0:root,,,:/usr/root:/bin/shell\n" )
+        with open( "dir/" + self.hostid + "/sys/.passwd.inode", "w" ) as fd: fd.write( "rw-r--r-- root root" )
         # Build the group file
-        with open( "dir/" + self.hostid + "/sys/group",           "w" ) as fd: fd.write( "root:x:0:\n" )
-        with open( "dir/" + self.hostid + "/sys/.group.inode",      "w" ) as fd: fd.write( "rw-r--r-- root root" )
+        with open( "dir/" + self.hostid + "/sys/group", "w" ) as fd: fd.write( "root:x:0:\n" )
+        with open( "dir/" + self.hostid + "/sys/.group.inode", "w" ) as fd: fd.write( "rw-r--r-- root root" )
 
         # Build the user directory for the root account
         os.makedirs( "dir/" + self.hostid + "/usr/root" )
@@ -285,7 +285,7 @@ class Host:
         self.alive = time.time( )
 
     # Shutdown this host
-    def shutdown( self ):
+    def shutdown( self, reboot=False ):
         # Terminate all processes
         for prc in self.ptbl: prc.kill( )
         # Mark this host as offline
@@ -307,8 +307,6 @@ class Host:
     # R  P  R
     # rwxrwxrwx
     def set_priv( self, path, user, priv ):
-        # Extract the username from the account
-        if isinstance( user, Account ): user = user.username
         # Fix the path
         path = self.respath( path )
         # Are we allowed to edit this directory
@@ -342,8 +340,6 @@ class Host:
     # Returns true if this user has privlage to preform this operation
     # Oper: Read = 0, Write = 1, Execute = 2
     def path_priv( self, path, user, oper ):
-        # Extract the username from the account
-        if isinstance( user, Account ): user = user.username
         # Fix the path
         path = self.respath( path )
         # Check if we're accessing a file or a directory
@@ -406,8 +402,6 @@ class Host:
 
     # Returns a tuple containing two lists, files and directories
     def list_dir( self, path, user ):
-        # Extract the username from the account
-        if isinstance( user, Account ): user = user.username
         # Correct the path
         path = self.respath( path )
         # Make sure we can read this directory
@@ -428,8 +422,6 @@ class Host:
 
     # Dump the contents of a file to a string
     def read_file( self, path, user ):
-        # Extract the username from the account
-        if isinstance( user, Account ): user = user.username
         # Fix the path
         path = self.respath( path )
         # Make sure we have permission to access this file
@@ -458,8 +450,6 @@ class Host:
     # Write the contents of data to a file
     # Data must either be a string or an array of strings
     def write_file( self, path, user, data, append=False ):
-        # Extract the username from the account
-        if isinstance( user, Account ): user = user.username
         # Build file path
         path = self.respath( path )
         # Set the default file mode
@@ -487,8 +477,6 @@ class Host:
     # groupName:x:groupID:user0,user1,user2
     # root:x:0:root,architect,underground
     def get_groups( self, user ):
-        # Extract the username from the account
-        if isinstance( user, Account ): user = user.username
         # Get the passwd file, must be done as root to avoid recursion
         plines = self.read_lines( "/sys/passwd", "root" )
         # Store the primary group
@@ -521,8 +509,6 @@ class Host:
     # string or Account | cuser ... The user to check
     # string or Account | user .... The user preforming the check
     def check_user( self, cuser, user ):
-        # Extract the username from the account
-        if isinstance( cuser, Account ): cuser = cuser.username
         # Read the password file
         plines = self.read_lines( "/sys/passwd", user )
         # Iterate through each user
@@ -538,30 +524,25 @@ class Host:
     # Returns false if this user does not exist
     # Returns false if this user does not have an account
     # Returns false if the password does not match
-    # string or Account | cuser ...... The user to check
-    # string            | password ... The password to check
-    # string or Account | user ....... The user preforming the check
+    # string | cuser ...... The user to check
+    # string | password ... The password to check
+    # string | user ....... The user preforming the check
     def check_pass( self, cuser, password, user ):
-        # Did we get a string or an Account
-        if not isinstance( cuser, Account ):
-            # Find the account that matches this username
-            user = Account.find_account( cuser )
-            # Check that this account exists
-            if acct is None: return False
+        # Find the account that matches this username
+        acct = Account.find_account( cuser )
+        # Check that this account exists
+        if acct is None: return False
         # Check that this user has an account here
         if not self.check_user( cuser, user ): return False
         # Check that this is the correct password
-        return user.check_pass( password )
+        return acct.check_pass( password )
 
-    # string  | nuser ... user to add to the system
-    # Account | nuser ... the account to add to this system (faster)
-    # string  | user .... the user preforming this operation
+    # string | nuser ... user to add to the system
+    # string | user .... the user preforming this operation
     # Returns true if successfull
     def add_user( self, nuser, user ):
         # Make sure this account doesn't already exist
         if self.check_user( nuser, user ): return False
-        # Extract the username from the account
-        if isinstance( user, Account ): user = user.username
         # Make sure this account even exists
         if isinstance( nuser, Account ):
             # We were given an account, so we know it must exist

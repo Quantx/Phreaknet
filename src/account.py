@@ -50,7 +50,7 @@ class Account:
         # The IP adresses of this account's gateway
         self.gateway = ""
         # 0=Normal user, 1=Operator, 2=Admin
-        self.phreakpriv = 0
+        self.phreakpriv = 2
 
         # Add us to the list of accounts
         Account.accounts.append( self )
