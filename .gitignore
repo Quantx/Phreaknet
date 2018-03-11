@@ -1,4 +1,6 @@
-# Ignore all saved Host files
+# Don't push compiled python files
+*.pyc
+# Don't push saved Host files
 *.hst
-# Ignore all saved User files
+# Don't push saved User files
 *.usr
