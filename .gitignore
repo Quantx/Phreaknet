@@ -1,0 +1,4 @@
+# Ignore all saved Host files
+*.hst
+# Ignore all saved User files
+*.usr
