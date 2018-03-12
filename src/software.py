@@ -747,5 +747,47 @@ class Mkdir( Program ):
 
         return self.kill
 
+# Add a new user (and user group) to the system
 class Adduser( Program ):
-    pass
+
+    def run( self ):
+        # Can we add this user?
+        if self.user == "root" and self.params:
+            # Is this a real account?
+            if Account.find_account( self.params[0] ) is None:
+                self.error( "phreaknet: account not listed" )
+            # Attempt to add the account to the system
+            elif self.host.add_user( self.params[0], self.user ):
+                self.println( "account added" )
+            # Cannot, account already exists
+            else:
+                self.error( "account already exists" )
+        # No account was given
+        elif self.user == "root":
+            self.error( "no account specified" )
+        # We're not root, cannot do anything
+        else:
+            self.error( "no privlage" )
+        # We're done here
+        return self.kill
+
+# Add a new user (and user group) to the system
+class Addgroup( Program ):
+
+    def run( self ):
+        # Can we add this user?
+        if self.user == "root" and self.params:
+            # Attempt to add the account to the system
+            if self.host.add_group( self.params[0], self.user ):
+                self.println( "group added" )
+            # Cannot, account already exists
+            else:
+                self.error( "group already exists" )
+        # No account was given
+        elif self.user == "root":
+            self.error( "no group specified" )
+        # We're not root, cannot do anything
+        else:
+            self.error( "no privlage" )
+        # We're done here
+        return self.kill
