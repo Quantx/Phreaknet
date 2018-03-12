@@ -41,6 +41,8 @@ def main( ):
     # Load all accounts into the system
     Account.load( )
 
+    lastloop = time.time( )
+
     # Start loop
     while 1:
         # Accept any new connections
@@ -68,6 +70,12 @@ def main( ):
         for h in Host.hosts:
             # Call this host's update function
             h.update( )
+
+        # Did that take too long
+        if time.time( ) - lastloop > 0.1:
+            xlog( "That took too long: %s" % ( time.time() - lastloop ) )
+
+        lastloop = time.time( )
 
 # Run main function, THIS MUST BE LAST IN THIS FILE
 if __name__ == "__main__":

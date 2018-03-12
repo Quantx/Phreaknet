@@ -262,13 +262,14 @@ class Program:
         self.rl_prompt = prompt
         # Reset timer
         self.rl_timer = time.time( )
+
+        # Print the prompt
+        self.printl( self.rl_prompt )
         # return the readchar loop
         return self.readchar_loop
 
     # Private, do not call
     def readchar_loop( self ):
-        # Print the prompt
-        self.printl( ansi_clear_line( ) + self.rl_prompt )
         # Check if the buffer has data in it
         if self.rl_buff:
             # Look at the first keypress and store it in the output
@@ -352,34 +353,30 @@ class Program:
         # Return the readchar prompt
         return self.readchar( self.pager_loop, "--More--(%s)" % per, [ "up", "down" ] )
 
+    # DO NOT call this externally, use the Host class's kill method
     # Recursively kill this program and all it's children
     # Extend this class with any cleanup code you might need
     # TIP: Set this as your rl_afunc, if want ctrl+c to kill the program.
-    def kill( self, recur=False ):
-        # If this is the first call then tell our origin we're dead
-        if not recur and self.origin is not None:
-            # Resolve the host at our origin
-            ohst = self.host.resolve( self.origin[0] )
-            if ohst is not None:
-                # Get the program running at this pid
-                pid = ohst.get_pid( self.origin[1] )
-                if pid is not None:
-                    # Set this program's destination to None
-                    pid.destin = None
-        # Tell our child to kill itself
-        if self.destin is not None:
-            self.host.resolve( self.destin[0] ).kill( self.destin[1], True )
-        # Call parent function to terminate self
-        self.func = None
+    def kill( self ):
+        # Do we have a parent to notify?
+        if self.origin is not None:
+            # Find our parent's host
+            dhost = self.host.resolve( self.origin[0] )
+            # Make sure that the host still exists
+            if dhost is not None:
+                # Find our parent program
+                prc = dhost.get_pid( self.origin[1] )
+                # Tell our paren't that we're dead
+                prc.destin = None
+                self.origin = None
+        # Return None to signify that we're ready to die
         return None
 
     # Send message to client
     # Message is sent after delay has elapsed
     def printl( self, msg, delay=0 ):
-        # Ignore empty messages
-        if msg:
-            # message, print delay, network lag
-            self.stdout( ( msg, delay, 0 ) )
+        # message, print delay, network lag
+        self.stdout( ( msg, delay, 0 ) )
 
     # Send message to client followed by a newline
     def println( self, msg="", delay=0 ):
@@ -434,8 +431,6 @@ class Program:
 # The command interpreting shell program
 # Extend this to implement unique shells
 class Shell( Program ):
-
-    help = "shell||start a sh"
 
     def __init__( self, user, tty, size, origin, params=[] ):
         # Pass parent args along
@@ -495,16 +490,20 @@ class Shell( Program ):
 
     # Print the help screen
     def help( self ):
-        # Print each command's help
+        # The pager file
+        out = []
+        # Iterate through the command table
         for cmd in self.sh_ctbl:
             # Split the command from the help message
             hlp = self.sh_ctbl[cmd]["help"].split( "||" )
             # Calculate the correct number of tabs
             tabs = "\t" * int(max( 4 - len( hlp[0] ) / 8, 0 ))
-            # Print out the help for this command
-            self.println( hlp[0] + tabs + hlp[1] )
+            # Add the help for this command to the output
+            out.append( hlp[0] + tabs + hlp[1] )
 
-        return self.shell
+        out.append( "For more help, try the man program" )
+
+        return self.pager( out, self.shell )
 
     # Alter the current working directory
     def cdir( self ):
@@ -633,7 +632,11 @@ class PS( Program ):
 
         # Print out each entry of the PID sorted table
         for prc in sorted(self.host.ptbl, key=lambda x: x.pid):
-            self.println( "%5s pts/%-4s 00:00:00 %s" % ( prc.pid, prc.tty, prc.name ) )
+            # Check which if a TTY is running this process
+            vtty = "?"
+            if prc.tty >= 0: vtty = prc.tty
+            # Print the line
+            self.println( "%5s pts/%-4s 00:00:00 %s" % ( prc.pid, vtty, prc.name ) )
 
         # Terminate the program
         return self.kill
@@ -682,16 +685,8 @@ class Kill( Program ):
                 cpid = int( float( self.params[0] ) )
                 # Make sure this PID is 2 bytes
                 if cpid < 0 or cpid > 65535: raise ValueError( "Not 2 bytes" )
-                # Loop through all process running on this host
-                for prc in self.host.ptbl:
-                    # Find a process with the specified PID
-                    if cpid == prc.pid:
-                        # Instruct that program to kill itself
-                        prc.func = prc.kill
-                        break
-                else:
-                    # No process with that ID
-                    self.error( "no such process" )
+                # Run the kill command on this host
+                if not self.host.kill( cpid ): self.error( "no such process" )
             except ValueError:
                 # We were not given a valid PID
                 self.error( "arguments must be process or job IDs" )
