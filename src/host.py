@@ -117,7 +117,7 @@ class Host:
         with open( "dir/" + self.hostid + "/sys/passwd", "w" ) as fd: fd.write( "root:x:0:0:root,,,:/usr/root:/bin/shell\n" )
         with open( "dir/" + self.hostid + "/sys/.passwd.inode", "w" ) as fd: fd.write( "rw-r--r-- root root" )
         # Build the group file
-        with open( "dir/" + self.hostid + "/sys/group", "w" ) as fd: fd.write( "root:x:0:\n" )
+        with open( "dir/" + self.hostid + "/sys/group", "w" ) as fd: fd.write( "root:x:0:\nsudo:x:1:\n" )
         with open( "dir/" + self.hostid + "/sys/.group.inode", "w" ) as fd: fd.write( "rw-r--r-- root root" )
 
         # Build the user directory for the root account
@@ -337,7 +337,7 @@ class Host:
             # Mark this host as offline
             self.online = False
             # Terminate all processes
-            for prc in self.ptbl: self.kill( prc.pid )
+            for prc in self.ptbl: self.kill( prc.pid, "root" )
 
             return True
 
@@ -410,8 +410,11 @@ class Host:
         if not os.path.isfile( file ):
             return False
 
-        # root can do whatever the hell he wants
+        # root can do whatever the hell he wants (prevents infinite recursion)
         if user == "root": return True
+
+        # Get all groups this user is in
+        groups = self.get_groups( user )
 
         # Store the privs for this directory
         privs = ""
@@ -421,9 +424,6 @@ class Host:
 
         # Split privs
         privs = privs.split( )
-
-        # Get all groups this user is in
-        groups = self.get_groups( user )
 
         # Is this user the owner and a group member?
         if user == privs[1] and privs[2] in groups:
@@ -524,33 +524,75 @@ class Host:
         # Call the write function with append mode
         return self.write_file( path, user, data, True )
 
-    # List all the groups this user is in
+    # List all users on the system or in a specific group
+    # string (optional) | group ... the group to get users from
+    def get_users( self, group="" ):
+        users = []
+        # Are we searching a group?
+        if group:
+            # Get the group file, must be done as root to avoid infinite recursion
+            glines = self.read_lines( "/sys/group", "root" )
+            # Iterate through groups to find the right one
+            for gln in glines:
+                # Split the data
+                gr = gln.split( ":" )
+                # Check if this is the right group
+                if group == gr[0]:
+                    # This is faster than just appending
+                    users = gr[3].split( "," )
+                    # We're done here
+                    break
+        # Are we searching the whole system?
+        else:
+            # Get the passwd file, must be done as root to avoid infinite recursion
+            plines = self.read_lines( "/sys/passwd", "root" )
+            # Iterate through all the users
+            for pln in plines:
+                # Split the data
+                pr = pln.split( ":" )
+                # Add the user
+                users.append( pr[0] )
+        # Return the list
+        return users
+
+    # List all the groups this user is in or list all groups on the system
     # Group file format:
     # groupName:x:groupID:user0,user1,user2
     # root:x:0:root,architect,underground
-    def get_groups( self, user ):
-        # Get the passwd file, must be done as root to avoid recursion
-        plines = self.read_lines( "/sys/passwd", "root" )
-        # Store the primary group
-        prim = ""
-        # Get this user's primary group
-        for pln in plines:
-            # Split the data
-            pr = pln.split( ":" )
-            # Is this the correct user?
-            if user == pr[0]: prim = pr[3]
-        # Get the group file, must be done as root to avoid recursion
+    # string (optional) | user ... the user to check for
+    def get_groups( self, user="" ):
+        # Get the group file, must be done as root to avoid infinite recursion
         glines = self.read_lines( "/sys/group", "root" )
         # Stores all groups the user is in
         groups = []
-        # Iterate through the group file
-        for gln in glines:
-            # Split the data
-            gr = gln.split( ":" )
-            # Check if this user is a member of the group
-            if prim == gr[2] or user in gr[3].split( "," ):
-                # Append group to the list of groups
+        # Are we just listing off all the groups?
+        if user:
+            # Iterate through all the groups
+            for gln in glines:
+                # Split the data
+                gr = gln.split( ":" )
+                # Get the name of the group
                 groups.append( gr[0] )
+        # We're just checking for this user
+        else:
+            # Get the passwd file, must be done as root to avoid infinite recursion
+            plines = self.read_lines( "/sys/passwd", "root" )
+            # Store the primary group
+            prim = ""
+            # Get this user's primary group
+            for pln in plines:
+                # Split the data
+                pr = pln.split( ":" )
+                # Is this the correct user?
+                if user == pr[0]: prim = pr[3]
+            # Iterate through the group file
+            for gln in glines:
+                # Split the data
+                gr = gln.split( ":" )
+                # Check if this user is a member of the group
+                if prim == gr[2] or user in gr[3].split( "," ):
+                    # Append group to the list of groups
+                    groups.append( gr[0] )
         # Return the list of groups
         return groups
 
@@ -623,24 +665,36 @@ class Host:
         # Return success
         return True
 
-# This program is basically the operating system for a Host. It is always run
-# first, cannot be run by a user and when killed will shutdown the host.
-# You can use this program's eventloop to run background OS level operations.
+    # Add a new group to the system
+    # string | ngroup ... group to add to the system
+    # string | user ..... user preforming the operation
+    def add_group( self, ngroup, user ):
+        # Make sure we have permission and that the group doesn't already exist
+        if ( not self.path_priv( "/sys/group", user, 1 )
+        or ngroup in self.get_groups( ) ): return False
+        # Build the new group file line
+        group = "%s:x:%s:\n" % (ngroup, self.ngid)
+        # Create the group
+        self.append_file( "/sys/group", user, ngroup )
+        # Increment the new groupID
+        self.ngid += 1
+        # Return success
+        return True
+
+# This program is basically the operating system for a Host. It is alw$
+# first, cannot be run by a user and when killed will shutdown the hos$
+# You can use this program's eventloop to run background OS level oper$
 class Systemx( Program ):
 
     def __init__( self ):
-        # No need for params, since this program is never run by a real user
-        super( ).__init__( self.runtime, "root", "/", -1, (80, 24), None, [] )
+        # No need for params, since this program is never run by a rea$
+        super( ).__init__( "root", "/", -1, (80, 24), None, [] )
 
-    def runtime( self ):
-        return self.runtime
+    def run( self ):
+        return self.run
 
     def kill( self ):
         # Operating system was killed, shutdown the host
         self.host.shutdown( )
         # Make sure to call the parent function
         return super( ).kill( )
-
-# This is a generic error that is displayed to the user
-# The first arg must be a string to be displayed
-class PhreaknetOSError( Exception ): pass

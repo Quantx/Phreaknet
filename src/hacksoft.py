@@ -14,12 +14,12 @@ class Porthack( Program ):
 
     def __init__( self, user, work, tty, size, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( self.startup, user, work, tty, size, origin, params )
+        super( ).__init__( user, work, tty, size, origin, params )
         # Stores the target host's IP
         self.ph_host = ""
 
     # Print the startup banner
-    def startup( self ):
+    def run( self ):
         # Did the user already specify a host?
         if self.params:
             self.ph_host = self.params[0]

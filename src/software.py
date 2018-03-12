@@ -47,20 +47,19 @@ class Program:
         # No program with the matching name found
         return None
 
-    # function           | func ..... starting function for the event loop
     # string             | user ..... the owner of this process
     # string             | work ..... this process' current working directory
     # integer            | tty ...... the TTY id this process belongs to
     # (integer, integer) | size ..... the width and height of this TTY
     # (string, integer)  | origin ... the IP and PID of the parent prog
-    def __init__( self, func, user, work, tty, size, origin, params=[] ):
+    def __init__( self, user, work, tty, size, origin, params=[] ):
         ### Set by the host when the process is assigned ###
         # Host reference
         self.host = None
         # THis prog's PID
         self.pid = -1
-        # Function to execute next, None to terminate process
-        self.func = func
+        # Function to execute next, self.kill to terminate process
+        self.func = self.run
         # Name of the process
         self.name = type( self ).__name__.lower( )
         # Owner of the process
@@ -357,6 +356,11 @@ class Program:
         # Return the readchar prompt
         return self.readchar( self.pager_loop, "--More--(%s)" % per, [ "up", "down" ] )
 
+    # A default method to be run, overwrite this to add functionality
+    def run( self ):
+        # Dummy function, just terminate ourselves
+        return self.kill
+
     # DO NOT call this externally, use the Host class's kill method
     # Recursively kill this program and all it's children
     # Extend this class with any cleanup code you might need
@@ -436,10 +440,9 @@ class Program:
 # Extend this to implement unique shells
 class Shell( Program ):
 
-    def __init__( self, user, tty, size, origin, params=[] ):
+    def __init__( self, user, work, tty, size, origin, params=[] ):
         # Pass parent args along
-        super( ).__init__( self.shell, user, "/usr/" + user,
-                           tty, size, origin, params )
+        super( ).__init__( user, work, tty, size, origin, params )
 
         # The default prompt for the command line
         self.sh_prompt = ">"
@@ -447,6 +450,8 @@ class Shell( Program ):
         self.sh_error = "unknown command"
         # Stores arguments for commands
         self.sh_args = []
+        # Are we root for this command?
+        self.sh_sudo = False
 
         # Default command table stores internal commands
         # function | fn   ... function to be run by this command
@@ -461,10 +466,12 @@ class Shell( Program ):
             "cd"    : { "fn" : self.cdir,  "help" : "cd [path]||change the working directory", },
             "pwd"   : { "fn" : self.pwd,   "help" : "pwd||print the current working directory", },
             "clear" : { "fn" : self.clear, "help" : "clear||clear the terminal screen", },
+            # This is a meta-command, it doesn't have an actual function
+            "sudo"  : { "fn" : None,       "help" : "sudo||execute a command as root", },
         }
 
     # The call to start the command processor
-    def shell( self ):
+    def run( self ):
         return self.readline( self.shell_resolve, self.sh_prompt )
 
     # Resolve the command line input
@@ -475,6 +482,21 @@ class Shell( Program ):
         if self.sh_args:
             # Extract the command from the string
             cmd = self.sh_args.pop( 0 )
+            # Reset sudo
+            self.sh_sudo = False
+            # Is this the sudo meta-command?
+            if cmd == "sudo":
+                # Only members of the sudo group can run this
+                if "sudo" in self.host.get_groups( self.user ):
+                    # We're sudo now
+                    self.sh_sudo = True
+                    # Extract the real command
+                    cmd = self.sh_args.pop( 0 )
+                else:
+                    self.error( "cannot sudo, no privlage" )
+                    # Return early
+                    return self.run
+
             # Check if this command is an external program
             pclass = Program.find_prog( cmd )
 
@@ -482,15 +504,19 @@ class Shell( Program ):
                 # Command was an internal command
                 return self.sh_ctbl[cmd]["fn"]
             elif pclass is not None:
+                # Are we root for this command?
+                puser = self.user
+                if self.sh_sudo:
+                    puser = "root"
                 # Command is an external program
-                prg = pclass( self.user, self.cwd, self.tty, self.size,
+                prg = pclass( puser, self.cwd, self.tty, self.size,
                               ("127.0.0.1", self.pid), self.sh_args )
                 # Start the new program and set the destination
                 self.destin = self.host.start( prg )
             else:
                 self.error( self.sh_error )
 
-        return self.shell
+        return self.run
 
     # Print the help screen
     def help( self ):
@@ -507,7 +533,7 @@ class Shell( Program ):
 
         out.append( "For more help, try the man program" )
 
-        return self.pager( out, self.shell )
+        return self.pager( out, self.run )
 
     # Alter the current working directory
     def cdir( self ):
@@ -521,9 +547,11 @@ class Shell( Program ):
             # Is this path a directory?
             elif os.path.isdir( "dir/" + self.host.hostid + sol ):
                 try:
+                    # Are we root for this command?
+                    puser = self.user
+                    if self.sh_sudo: puser = "root"
                     # Do we have read privs for this directory?
-                    if self.host.path_priv( "dir/" + self.host.hostid + sol,
-                                            self.user, 2 ):
+                    if self.host.path_priv( "dir/" + self.host.hostid + sol, puser, 2 ):
                         # Set our new directory
                         self.cwd = sol
                     else:
@@ -537,27 +565,23 @@ class Shell( Program ):
             # No path specified, set the working dir to the home dir
             self.cwd = "/usr/" + self.user
 
-        return self.shell
+        return self.run
 
     # Print the current working directory
     def pwd( self ):
         self.println( self.cwd )
-        return self.shell
+        return self.run
 
     # Clear the terminal screen
     def clear( self ):
         self.printl( ansi_clear( ) )
-        return self.shell
+        return self.run
 
 # Starts a Shell session on a remote host
 class SSH( Program ):
 
-    def __init__( self, user, work, tty, size, origin, params=[] ):
-        # Pass parent args along
-        super( ).__init__( self.ssh, user, work, tty, size, origin, params )
-
     # Connect to a remote host and start a shell
-    def ssh( self ):
+    def run( self ):
         if self.params:
             # Resolve the remote host form IP
             dhost = self.host.resolve( self.params[0] )
@@ -591,8 +615,8 @@ class SSH( Program ):
         if dhost.check_pass( self.user, self.rl_line, "root" ):
             self.println( "Logged in as user " + self.user.upper() )
             # Create a new shell
-            nsh = Shell( self.user, self.ssh_ntty, self.size,
-                ( self.host.ip, self.pid ) )
+            nsh = Shell( self.user, "/usr/" + self.user, self.ssh_ntty,
+                self.size, ( self.host.ip, self.pid ) )
             # Start a shell on the remote host, and set the destination
             self.destin = dhost.start( nsh )
         else:
@@ -605,11 +629,7 @@ class SSH( Program ):
 # Prints the contents of a directory
 class LS( Program ):
 
-    def __init__( self, user, work, tty, size, origin, params=[] ):
-        # Pass parent args along
-        super( ).__init__( self.list, user, work, tty, size, origin, params )
-
-    def list( self ):
+    def run( self ):
         try:
             # List all the files and directories at the path
             dnames, fnames = self.host.list_dir( self.cwd, self.user )
@@ -627,10 +647,7 @@ class LS( Program ):
 # List the process tabke
 class PS( Program ):
 
-    def __init__( self, user, work, tty, size, origin, params=[] ):
-        super( ).__init__( self.list, user, work, tty, size, origin, params )
-
-    def list( self ):
+    def run( self ):
         # Print the header
         self.println( "  PID TTY          TIME CMD" )
 
@@ -651,10 +668,7 @@ class PS( Program ):
 # List information about a host
 class Hostname( Program ):
 
-    def __init__( self, user, work, tty, size, origin, params=[] ):
-        super( ).__init__( self.info, user, work, tty, size, origin, params )
-
-    def info( self ):
+    def run( self ):
         # Were any parameters given?
         if self.params:
             # A parameter was given, change the hostname
@@ -691,10 +705,7 @@ class Hostname( Program ):
 # Terminate a process
 class Kill( Program ):
 
-    def __init__( self, user, work, tty, size, origin, params=[] ):
-        super( ).__init__( self.murder, user, work, tty, size, origin, params )
-
-    def murder( self ):
+    def run( self ):
         # Did the user specify a PID?
         if self.params:
             # Make sure we were given a job ID
@@ -721,12 +732,8 @@ class Kill( Program ):
 # Make a new directory
 class Mkdir( Program ):
 
-    def __init__( self, user, work, tty, size, origin, params=[] ):
-        # Pass args to parent
-        super( ).__init__( self.create, user, work, tty, size, origin, params )
-
     # Create the directory
-    def create( self ):
+    def run( self ):
         # Did the user specify a directory to make
         if self.params:
             # Create the actual directory
@@ -739,3 +746,6 @@ class Mkdir( Program ):
             self.error( "missing operand" )
 
         return self.kill
+
+class Adduser( Program ):
+    pass

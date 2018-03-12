@@ -11,10 +11,11 @@
 #####                             #####
 
 from formating import *
+from exceptions import *
 from account import *
 from software import *
+from host import *
 from hacksoft import *
 from phreaknet import *
-from host import *
 # Networking should be last
 from networking import *

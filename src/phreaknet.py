@@ -13,9 +13,9 @@ from init import *
 # DO NOT use this shell on any host except Phreaknet gateways
 class PhreakShell( Shell ):
 
-    def __init__( self, user, tty, size, params=[] ):
+    def __init__( self, user, work, tty, size, params=[] ):
         # Substitute None for origin since it's not used
-        super( ).__init__( user, tty, size, None, params=[] )
+        super( ).__init__( user, work, tty, size, None, params=[] )
 
         # Use the @ symbol for a prompt
         self.sh_prompt = "@"
@@ -75,4 +75,4 @@ class PhreakShell( Shell ):
             self.println( "*** SAFEMODE ENGAGED, NO NETWORK CONNECTION ***", 0.2 )
 
         # Return the command shell
-        return self.shell
+        return self.run
