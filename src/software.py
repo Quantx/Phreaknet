@@ -655,26 +655,37 @@ class Hostname( Program ):
         super( ).__init__( self.info, user, work, tty, size, origin, params )
 
     def info( self ):
-        # Print the hostname
-        self.println( self.host.hostname )
-        # Does this host have an IP address assigned?
-        if self.host.ip:
-            self.println( self.host.ip )
+        # Were any parameters given?
+        if self.params:
+            # A parameter was given, change the hostname
+            nhn = self.params[0]
+            # First letter must be alphanumeric
+            if nhn[0].lower() in "abcdefghijklmnopqrstuvwxyz0123456789" and len( nhn ) <= 32:
+                self.host.hostname = nhn
+                self.println( "hostname set" )
+            else:
+                self.error( "invalid hostname" )
         else:
-            self.println( "No IP address" )
-        # Does this host have a Phone number assigned?
-        if self.host.phone:
-            self.println( self.host.phone )
-        else:
-            self.println( "No Phone number" )
+            # Print the hostname
+            self.println( self.host.hostname )
+            # Does this host have an IP address assigned?
+            if self.host.ip:
+                self.println( self.host.ip )
+            else:
+                self.println( "No IP address" )
+            # Does this host have a Phone number assigned?
+            if self.host.phone:
+                self.println( self.host.phone )
+            else:
+                self.println( "No Phone number" )
 
-        # Only Admins should be able to see this
-        acct = Account.find_account( self.user )
-        # Make sure account exists and account is Admin
-        if acct is not None and acct.is_admin( ):
-             self.println( self.host.hostid )
+            # Only Admins should be able to see this
+            acct = Account.find_account( self.user )
+            # Make sure account exists and account is Admin
+            if acct is not None and acct.is_admin( ):
+                self.println( self.host.hostid )
 
-        # Terminate ourselves
+         # Terminate ourselves
         return self.kill
 
 # Terminate a process
