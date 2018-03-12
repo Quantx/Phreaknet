@@ -70,6 +70,9 @@ class PhreakShell( Shell ):
 
         self.sprintln( "CONNECTED TO " + self.host.hostname.upper( ), 0.03 )
         self.sprintln( "SYSTEM ................... READY", 0.03 )
+        # Let the user know they're in safe mode
+        if self.host.safemode:
+            self.println( "*** SAFEMODE ENGAGED, NO NETWORK CONNECTION ***", 0.2 )
 
         # Return the command shell
         return self.shell
