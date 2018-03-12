@@ -210,35 +210,38 @@ class Host:
     # Start a new proc on this host
     # Returns a tuple ( host, pid ) of the new process or None if it didnt start
     def start( self, proc ):
-        # Store the current PID before requesting a new one
-        tpid = self.npid
         ### Request a free PID ###
         # If no PID was found within self.mpid attempts then self.ptbl is full
         for _ in range( self.mpid ):
-            # Increment self.npid from last time
-            self.npid += 1
-            # Make sure self.npid isn't greater then self.ntty
-            if self.npid >= self.mpid:
-                self.npid = 1
-
+            # Check if the current PID is free
             for p in self.ptbl:
                 # Break if PID in use
                 if self.npid == p.pid: break
             else:
                 # PID is free, exit loop
                 break
+
+            # Increment self.npid
+            self.npid += 1
+            # Make sure self.npid isn't greater then self.ntty
+            if self.npid >= self.mpid: self.npid = 1
         else:
             # ptbl is full cant start
             return None
 
         # Pass this host's IP and the new PID
         proc.host = self
-        proc.pid = tpid
+        proc.pid = self.npid
+
+        # Increment self.npid for next time
+        self.npid += 1
+        # Make sure self.npid isn't greater then self.ntty
+        if self.npid >= self.mpid: self.npid = 1
 
         # Append program to our ptbl
         self.ptbl.append( proc )
         # Program started, return the tuple
-        return ( self.ip, tpid )
+        return ( self.ip, proc.pid )
 
     # Processes and Programs should use this as much as possible
     def resolve( self, ip ):
