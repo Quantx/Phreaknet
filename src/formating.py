@@ -43,6 +43,18 @@ def xlog( msg, cli=None, hst=None ):
     # Print the output
     sys.stdout.write( ansi_clear_line( ) + out )
 
+# Convert an integer (in seconds) into HH:MM:SS format
+def time_hms( tm ):
+    # Calculate hours
+    hrs = int( tm / 3600 )
+    tm -= hrs * 3600
+    # Calculate minutes
+    min = int( tm / 60 )
+    tm -= min * 60
+
+    # Print formated output
+    return "%02d:%02d:%02d" % ( hrs, min, tm )
+
 # Move the cursor to a postion on the screen
 # Can either be a set of coords or a tuple
 # (0, 0) is the top left cell

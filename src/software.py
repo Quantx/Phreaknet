@@ -65,6 +65,8 @@ class Program:
         self.name = type( self ).__name__.lower( )
         # Owner of the process
         self.user = user
+        # The process's group
+        self.group = user
         # The current working directory
         self.cwd = work
         # The TTY of this Process, -1 for no TTY
@@ -75,6 +77,8 @@ class Program:
         self.params = params
         # Time started
         self.started = time.time( )
+        # CPU time used
+        self.ptime = 0
 
         # Stores the location of the program to send/recv data to/from
         # Basically the stdin for this program
@@ -635,8 +639,11 @@ class PS( Program ):
             # Check which if a TTY is running this process
             vtty = "?"
             if prc.tty >= 0: vtty = prc.tty
+            # Format the process time
+            ptm = "99:99:99"
+            if self.ptime < 360000: ptm = time_hms( self.ptime )
             # Print the line
-            self.println( "%5s pts/%-4s 00:00:00 %s" % ( prc.pid, vtty, prc.name ) )
+            self.println( "%5s pts/%-4s %s %s" % ( prc.pid, vtty, ptm, prc.name ) )
 
         # Terminate the program
         return self.kill
@@ -685,8 +692,12 @@ class Kill( Program ):
                 cpid = int( float( self.params[0] ) )
                 # Make sure this PID is 2 bytes
                 if cpid < 0 or cpid > 65535: raise ValueError( "Not 2 bytes" )
+                # See if a process with this ID even exists
+                if self.host.get_pid( cpid ) is None:
+                    self.error( "no such process" )
                 # Run the kill command on this host
-                if not self.host.kill( cpid ): self.error( "no such process" )
+                elif not self.host.kill( cpid, self.user ):
+                    self.error( "permission denied" )
             except ValueError:
                 # We were not given a valid PID
                 self.error( "arguments must be process or job IDs" )

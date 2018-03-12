@@ -251,19 +251,26 @@ class Host:
 
     # Kill a process running on this host
     # Returns if sucessful or not
-    def kill( self, pid ):
+    # integer | pid .... the process ID to kill
+    # string  | user ... the user preforming the operation
+    def kill( self, pid, user ):
         for p in self.ptbl:
             if p.pid == pid:
-                # Kill the process
-                p.func = p.kill
-                # Kill the child process
-                if p.destin is not None:
-                    # Get the host that the child is running on
-                    dhost = self.resolve( p.destin[0] )
-                    if dhost is not None:
-                        # Run the kill command on the child's PID
-                        dhost.kill( p.destin[1] )
-                return True
+                # Are we allowed to modify this process?
+                if ( user == "root" or user == p.user
+                or p.group in self.get_groups( user ) ):
+                    # Kill the process
+                    p.func = p.kill
+                    # Kill the child process
+                    if p.destin is not None:
+                        # Get the host that the child is running on
+                        dhost = self.resolve( p.destin[0] )
+                        if dhost is not None:
+                            # Run the kill command on the child's PID
+                            dhost.kill( p.destin[1], user )
+                    return True
+                # We found the right PID, we can break now
+                break
         return False
 
     # Update all aspects of this host
@@ -281,8 +288,12 @@ class Host:
             i += 1
             # Make sure process isn't attached
             if proc.destin is None:
+                # Store time at start of execution
+                extime = time.time( )
                 # Execute process
                 proc.func = proc.func( )
+                # Calculate processor time
+                proc.ptime += time.time( ) - extime
 
                 # Add running processes to the end of the queue
                 # Processes with a TTY set to None were created in error
