@@ -158,7 +158,7 @@ class Host:
         prog = self.get_pid( pid )
         # Check if this program exists
         if prog is not None:
-            # Program exists the data
+            # Program exists, send the data
             prog.stdin( data, forward )
             return True
         # Program doesn't exist
@@ -210,6 +210,8 @@ class Host:
     # Start a new proc on this host
     # Returns a tuple ( host, pid ) of the new process or None if it didnt start
     def start( self, proc ):
+        # Store the current PID before requesting a new one
+        tpid = self.npid
         ### Request a free PID ###
         # If no PID was found within self.mpid attempts then self.ptbl is full
         for _ in range( self.mpid ):
@@ -231,12 +233,12 @@ class Host:
 
         # Pass this host's IP and the new PID
         proc.host = self
-        proc.pid = self.npid
+        proc.pid = tpid
 
         # Append program to our ptbl
         self.ptbl.append( proc )
         # Program started, return the tuple
-        return ( self.ip, self.npid )
+        return ( self.ip, tpid )
 
     # Processes and Programs should use this as much as possible
     def resolve( self, ip ):
@@ -252,8 +254,15 @@ class Host:
     def kill( self, pid ):
         for p in self.ptbl:
             if p.pid == pid:
-                # Kill the process and pass a reference
-                p.kill( )
+                # Kill the process
+                p.func = p.kill
+                # Kill the child process
+                if p.destin is not None:
+                    # Get the host that the child is running on
+                    dhost = self.resolve( p.destin[0] )
+                    if dhost is not None:
+                        # Run the kill command on the child's PID
+                        dhost.kill( p.destin[1] )
                 return True
         return False
 
@@ -264,7 +273,7 @@ class Host:
         # Update processes
         i = 0
         while i < cpu:
-            # Abort if nothing to update
+            # Abort if offline or nothing to update
             if not self.ptbl: return
             # Fetch next process
             proc = self.ptbl[0]
@@ -274,15 +283,14 @@ class Host:
             if proc.destin is None:
                 # Execute process
                 proc.func = proc.func( )
+
                 # Add running processes to the end of the queue
                 # Processes with a TTY set to None were created in error
                 if proc.func is not None or proc.tty is None:
-                   # Rotate the list
-                   self.ptbl.append( self.ptbl.pop( 0 ) )
+                    # Rotate the list
+                    self.ptbl.append( self.ptbl.pop( 0 ) )
                 else:
-                    # Ensure the process is dead
-                    proc.kill( )
-                    # Remove the dead program
+                    # Remove the dead program if we're still online
                     self.ptbl.pop( 0 )
             else:
                 # This process isn't actively running, rotate the list
@@ -290,19 +298,36 @@ class Host:
 
     # Startup this host
     def startup( self, safemode=False ):
-        # Mark this host as online
-        self.online = True
-        # Configure safe mode
-        self.safemode = safemode
-        # Reset the active timer
-        self.alive = time.time( )
+        # Can't startup if we're already online
+        if not self.online:
+            # Mark this host as online
+            self.online = True
+            # Reset npid and ntty
+            self.npid = 0
+            self.ntty = 64
+            # Start the systemx (operating system) process
+            self.start( Systemx( ) )
+            # Configure safe mode
+            self.safemode = safemode
+            # Reset the active timer
+            self.alive = time.time( )
+
+            return True
+
+        return False
 
     # Shutdown this host
     def shutdown( self, reboot=False ):
-        # Terminate all processes
-        for prc in self.ptbl: prc.kill( )
-        # Mark this host as offline
-        self.online = False
+        # Can't shutdown if we're already offline
+        if self.online:
+            # Mark this host as offline
+            self.online = False
+            # Terminate all processes
+            for prc in self.ptbl: self.kill( prc.pid )
+
+            return True
+
+        return False
 
     # Convert in game paths to actual system paths
     def respath( self, path ):
@@ -583,6 +608,24 @@ class Host:
         with open( "dir/" + self.hostid + "/usr/" + nuser + "/.inode", "w" ) as fd: fd.write( "rwx------ " + nuser + " " + nuser )
         # Return success
         return True
+
+# This program is basically the operating system for a Host. It is always run
+# first, cannot be run by a user and when killed will shutdown the host.
+# You can use this program's eventloop to run background OS level operations.
+class Systemx( Program ):
+
+    def __init__( self ):
+        # No need for params, since this program is never run by a real user
+        super( ).__init__( self.runtime, "root", "/", -1, (80, 24), None, [] )
+
+    def runtime( self ):
+        return self.runtime
+
+    def kill( self ):
+        # Operating system was killed, shutdown the host
+        self.host.shutdown( )
+        # Make sure to call the parent function
+        return super( ).kill( )
 
 # This is a generic error that is displayed to the user
 # The first arg must be a string to be displayed

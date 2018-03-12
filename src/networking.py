@@ -431,7 +431,10 @@ class Client:
         elif gatehost.online:
             # Did the user hit enter?
             if data.find( "\r" ) >= 0 and len( self.mg_tty ) > 0:
+                # Convert tty from string to int
                 ntty = int( float( self.mg_tty ) )
+                # Reset prompt
+                self.mg_tty = ""
                 # Is this tty already in use?
                 for proc in gatehost.ptbl:
                     # Check if this proc is our TTY

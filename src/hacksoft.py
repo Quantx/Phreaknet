@@ -88,6 +88,7 @@ class Porthack( Program ):
         # Check to see if the port was the correct one
         if port == 0:
             # Correct port guessed, add our account
+            self.println( "account added successfully" )
             dhost.add_user( self.user, "root" )
             return self.kill
         # Incorrect port guessed, retry
