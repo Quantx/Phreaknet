@@ -509,7 +509,7 @@ class Host:
         # Check if we're in append mode
         if append: mode = "a"
         # Concatinate arrays of strings
-        if not isinstance( data, str ): data = "\n".join( data )
+        if not isinstance( data, str ): data = "\n".join( data ) + "\n"
         # Make sure we have permission to access this file
         if not self.path_priv( path, user, 0 ): raise PhreaknetOSError( "Permission denied" )
         # Make sure this is in fact a file
@@ -565,16 +565,8 @@ class Host:
         glines = self.read_lines( "/sys/group", "root" )
         # Stores all groups the user is in
         groups = []
-        # Are we just listing off all the groups?
+        # Are we're just checking for this user
         if user:
-            # Iterate through all the groups
-            for gln in glines:
-                # Split the data
-                gr = gln.split( ":" )
-                # Get the name of the group
-                groups.append( gr[0] )
-        # We're just checking for this user
-        else:
             # Get the passwd file, must be done as root to avoid infinite recursion
             plines = self.read_lines( "/sys/passwd", "root" )
             # Store the primary group
@@ -593,6 +585,14 @@ class Host:
                 if prim == gr[2] or user in gr[3].split( "," ):
                     # Append group to the list of groups
                     groups.append( gr[0] )
+        # We're just listing off all the groups?
+        else:
+            # Iterate through all the groups
+            for gln in glines:
+                # Split the data
+                gr = gln.split( ":" )
+                # Get the name of the group
+                groups.append( gr[0] )
         # Return the list of groups
         return groups
 
@@ -646,19 +646,14 @@ class Host:
             return False
         # Build the new user's passwd file line
         paswd = "%s:x:%s:%s:,,,:/usr/%s:/bin/shell\n" % (nuser, self.nuid, self.ngid, nuser)
-        # Build the new user's group file line
-        group = "%s:x:%s:\n" % (nuser, self.ngid)
         # Make sure we can preform this operation
         if not self.path_priv( "/sys/passwd", user, 1 ): return False
-        if not self.path_priv( "/sys/group",  user, 1 ): return False
+        # Try to build the group file
+        if not self.add_group( nuser, user ): return False
         # Create the user
         self.append_file( "/sys/passwd", user, paswd )
         # Increment the new userID
         self.nuid += 1
-        # Create the group
-        self.append_file( "/sys/group", user, group )
-        # Increment the new groupID
-        self.ngid += 1
         # Make this user's home directory
         os.makedirs( "dir/" + self.hostid + "/usr/" + nuser )
         with open( "dir/" + self.hostid + "/usr/" + nuser + "/.inode", "w" ) as fd: fd.write( "rwx------ " + nuser + " " + nuser )
@@ -675,9 +670,50 @@ class Host:
         # Build the new group file line
         group = "%s:x:%s:\n" % (ngroup, self.ngid)
         # Create the group
-        self.append_file( "/sys/group", user, ngroup )
+        self.append_file( "/sys/group", user, group )
         # Increment the new groupID
         self.ngid += 1
+        # Return success
+        return True
+
+    # Remove a user from the system (if they're not logged in)
+    # string | nuser ... user to delete from the system
+    # string | user .... user preforming the operation
+    def del_user( self, nuser, user ):
+        # Make sure we have privs to access to read and write these files
+        if not self.path_priv( "/sys/passwd", user, 1 ): return False
+        if not self.path_priv( "/sys/passwd", user, 0 ): return False
+        # Make sure this user has an account
+        if not self.check_user( nuser, user ): return False
+        # Make sure this user isn't logged in
+        for prc in self.ptbl:
+            # Is this a background process or not?
+            if prc.user == nuser and prc.tty >= 0:
+                return False
+        # Start by trying to delete this user's group
+        if not self.del_group( nuser, user ): return False
+        # We're good, let's terminate this account
+        users = self.read_lines( "/sys/passwd", user )
+        # Strip this user from both lists
+        users[:] = [us for us in users if not us.startswith( nuser )]
+        # Re-write the file
+        self.write_file( "/sys/passwd", user, users )
+        # Return success
+        return True
+
+    # Delete a group from the system
+    # string | ngroup ... the group to delete
+    # string | user ..... the user preforming the operation
+    def del_group( self, ngroup, user ):
+        # Make sure we have privs to access to read and write these files
+        if not self.path_priv( "/sys/group",  user, 1 ): return False
+        if not self.path_priv( "/sys/group",  user, 0 ): return False
+        # We're good, lets remove this group
+        groups = self.read_lines( "/sys/group", user )
+        # Strip this user from the groups
+        groups[:] = [gr for gr in groups if not gr.startswith( ngroup )]
+        # Re-write the file
+        self.write_file( "/sys/group", user, groups )
         # Return success
         return True
 

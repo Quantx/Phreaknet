@@ -466,8 +466,6 @@ class Shell( Program ):
             "cd"    : { "fn" : self.cdir,  "help" : "cd [path]||change the working directory", },
             "pwd"   : { "fn" : self.pwd,   "help" : "pwd||print the current working directory", },
             "clear" : { "fn" : self.clear, "help" : "clear||clear the terminal screen", },
-            # This is a meta-command, it doesn't have an actual function
-            "sudo"  : { "fn" : None,       "help" : "sudo||execute a command as root", },
         }
 
     # The call to start the command processor
@@ -488,10 +486,18 @@ class Shell( Program ):
             if cmd == "sudo":
                 # Only members of the sudo group can run this
                 if "sudo" in self.host.get_groups( self.user ):
+                    print( self.host.get_groups( self.user ) )
                     # We're sudo now
                     self.sh_sudo = True
-                    # Extract the real command
-                    cmd = self.sh_args.pop( 0 )
+                    # Did we get anything other than sudo?
+                    if self.sh_args:
+                        # Extract the real command
+                        cmd = self.sh_args.pop( 0 )
+                    else:
+                        # Nope, print usage
+                        self.error( "usage: sudo <command>" )
+                        # We're done here
+                        return self.run
                 else:
                     self.error( "cannot sudo, no privlage" )
                     # Return early
@@ -752,7 +758,7 @@ class Adduser( Program ):
 
     def run( self ):
         # Can we add this user?
-        if self.user == "root" and self.params:
+        if self.params:
             # Is this a real account?
             if Account.find_account( self.params[0] ) is None:
                 self.error( "phreaknet: account not listed" )
@@ -763,11 +769,8 @@ class Adduser( Program ):
             else:
                 self.error( "account already exists" )
         # No account was given
-        elif self.user == "root":
-            self.error( "no account specified" )
-        # We're not root, cannot do anything
         else:
-            self.error( "no privlage" )
+            self.error( "usage: adduser <username>" )
         # We're done here
         return self.kill
 
@@ -775,19 +778,58 @@ class Adduser( Program ):
 class Addgroup( Program ):
 
     def run( self ):
-        # Can we add this user?
-        if self.user == "root" and self.params:
-            # Attempt to add the account to the system
+        # Can we add this group?
+        if self.params:
+            # Attempt to add the group to the system
             if self.host.add_group( self.params[0], self.user ):
                 self.println( "group added" )
-            # Cannot, account already exists
+            # Cannot, group already exists
             else:
                 self.error( "group already exists" )
-        # No account was given
-        elif self.user == "root":
-            self.error( "no group specified" )
-        # We're not root, cannot do anything
+        # No group was given
         else:
-            self.error( "no privlage" )
+            self.error( "usage: addgroup <group>" )
         # We're done here
         return self.kill
+
+# Delete a user from the system
+class Deluser( Program ):
+
+    def run( self ):
+        # Can we add this user?
+        if self.params:
+            # Attempt to add the account to the system
+            if self.host.del_user( self.params[0], self.user ):
+                self.println( "account deleted" )
+            # Cannot, account already exists
+            else:
+                self.error( "account does not exist" )
+        # No account was given
+        else:
+            self.error( "usage: deluser <username>" )
+        # We're done here
+        return self.kill
+
+# Delete a group from the system
+class Delgroup( Program ):
+
+    def run( self ):
+        # Can we add this group?
+        if self.params:
+            # Attempt to add the group to the system
+            if self.host.del_group( self.params[0], self.user ):
+                self.println( "group deleted" )
+            # Cannot, group already exists
+            else:
+                self.error( "group does not exist" )
+        # No group was given
+        else:
+            self.error( "usage: delgroup <group>" )
+        # We're done here
+        return self.kill
+
+# Add or remove a user from a group
+class Usermod( Program ):
+
+    def run( self ):
+        pass

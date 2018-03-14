@@ -4,3 +4,5 @@
 *.hst
 # Don't push saved User files
 *.usr
+# Ignore the dir/ directory
+dir/*

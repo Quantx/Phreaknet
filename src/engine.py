@@ -17,14 +17,15 @@ def main( ):
     os.chdir( ".." )
 
     # Create the user directory if it doesn't exist
-    if not os.path.exists( "usr" ):
-        os.makedirs( "usr" )
+    if not os.path.exists( "usr" ): os.makedirs( "usr" )
     # Load all accounts from disk
     Account.load( )
 
     # Create the host directory if it doesn't exist
-    if not os.path.exists( "hst" ):
-        os.makedirs( "hst" )
+    if not os.path.exists( "hst" ): os.makedirs( "hst" )
+
+    # Create the hostdir directory if it doesn't exist
+    if not os.path.exists( "dir" ): os.makedirs( "dir" )
 
     # Build the program table
     Program.build_progtbl( )
