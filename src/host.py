@@ -11,7 +11,23 @@ from init import *
 import os
 import string
 import random
+import shutil
 import binascii
+
+host_progs = [
+    "shell",
+    "ps",
+    "ls",
+    "kill",
+    "ssh",
+    "porthack",
+    "hostname",
+    "mkdir",
+    "adduser",
+    "deluser",
+    "addgroup",
+    "delgroup"
+]
 
 class Host:
 
@@ -124,6 +140,9 @@ class Host:
         os.makedirs( "dir/" + self.hostid + "/usr/root" )
         with open( "dir/" + self.hostid + "/usr/root/.inode", "w" ) as fd: fd.write( "rwx------ root root" )
 
+        # Import all the base progs into /bin
+        self.import_progs( host_progs, "/bin" )
+
         ### Process table ###
         # Stores all the processes running on this host
         self.ptbl = []
@@ -150,6 +169,26 @@ class Host:
     def save( self ):
         with open( 'hst/%s.hst' + self.hostname, 'wb+' ) as f:
             pickle.dump( self, f )
+
+    # Import programs to a directory
+    # list (strings) | progs ... a list of program names
+    # string         | path .... the dir to place them in
+    def import_progs( self, progs, path ):
+        # Fix the path
+        path = self.respath( path )
+        # Make sure path is a directory
+        if not os.path.isdir( path ): return
+        # Loop through every program
+        for prg in progs:
+            # Build the path to the program
+            fn = "dat/progs/" + prg.lower()
+            # Make sure this is a valid executable
+            if os.path.isfile( fn ):
+                # Copy the file
+                shutil.copy2( fn, path )
+                # Build the inode for this file
+                with open( path + "/." + prg.lower() + ".inode", "w" ) as fd:
+                    fd.write( "rwxr-xr-x root root" )
 
     # Relay input to the respective PID
     # Returns if the process is still running
