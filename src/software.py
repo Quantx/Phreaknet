@@ -707,7 +707,7 @@ class PS( Program ):
 
     def run( self ):
         # Print the header
-        self.println( "  PID TTY          TIME CMD" )
+        out = [ [ "PID", "TTY", "TIME", "CMD" ] ]
 
         # Print out each entry of the PID sorted table
         for prc in sorted(self.host.ptbl, key=lambda x: x.pid):
@@ -718,10 +718,10 @@ class PS( Program ):
             ptm = "99:99:99"
             if self.ptime < 360000: ptm = time_hms( self.ptime )
             # Print the line
-            self.println( "%5s pts/%-4s %s %s" % ( prc.pid, vtty, ptm, prc.name ) )
+            out.append( [ prc.pid, vtty, ptm, prc.name ] )
 
         # Terminate the program
-        return self.kill
+        return self.pager( out )
 
 # List information about a host
 class Hostname( Program ):
