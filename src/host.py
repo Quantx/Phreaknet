@@ -457,9 +457,11 @@ class Host:
         # Correct the path
         path = self.respath( path )
         # Make sure we can read this directory
-        if not self.path_priv( path, user, 0 ): raise PhreaknetOSError( "Permission denied" )
+        if not self.path_priv( path, user, 0 ):
+            raise PhreaknetOSError( "Permission denied" )
         # Verify this is a directory
-        if not os.path.isdir( path ): raise PhreaknetOSError( "Cannot list contents of file" )
+        if not os.path.isdir( path ):
+            raise PhreaknetOSError( "Cannot list contents of file" )
 
         # Walk the path and get the contents of this dir
         _, dnames, fnames = next( os.walk(path) )
@@ -472,14 +474,36 @@ class Host:
         # Return the results
         return ( dnames, fnames )
 
+    # Attempt to execute a file, returns the class to be instantiated
+    # string | path ... path to file
+    # string | user ... user preforming the operation
+    def exec_file( self, path, user ):
+        # Fix the path
+        path = self.respath( path )
+        # Make sure we have permission to execute the file
+        if not self.path_priv( path, user, 2 ):
+            raise PhreaknetOSError( "Permission denied" )
+        # Cannot execute directories
+        if os.path.isdir( path ):
+            raise PhreaknetOSError( "Is a directory" )
+        # Find the corresponding program
+        prg = Program.find_prog( os.path.basename( path ) )
+        # Make sure this is the actual executible
+        if prg is None or prg.checksum != md5_check( path ):
+            raise PhreaknetOSError( "Segmentation fault" )
+        # Return the class
+        return prg
+
     # Dump the contents of a file to a string
     def read_file( self, path, user ):
         # Fix the path
         path = self.respath( path )
         # Make sure we have permission to access this file
-        if not self.path_priv( path, user, 0 ): raise PhreaknetOSError( "Permission denied" )
+        if not self.path_priv( path, user, 0 ):
+            raise PhreaknetOSError( "Permission denied" )
         # Cannot read directories
-        if os.path.isdir( path ): raise PhreaknetOSError( "Is a directory" )
+        if os.path.isdir( path ):
+            raise PhreaknetOSError( "Is a directory" )
 
         # Open the file
         with open( path ) as fd:
@@ -511,9 +535,11 @@ class Host:
         # Concatinate arrays of strings
         if not isinstance( data, str ): data = "\n".join( data ) + "\n"
         # Make sure we have permission to access this file
-        if not self.path_priv( path, user, 0 ): raise PhreaknetOSError( "Permission denied" )
+        if not self.path_priv( path, user, 0 ):
+            raise PhreaknetOSError( "Permission denied" )
         # Make sure this is in fact a file
-        if not os.path.isfile( path ): raise PhreaknetOSError( "Is a directory" )
+        if not os.path.isfile( path ):
+            raise PhreaknetOSError( "Is a directory" )
         # Open the file
         with open( path, mode ) as fd:
             # Write the data

@@ -8,6 +8,7 @@
 
 from init import *
 
+import hashlib
 import time
 import sys
 
@@ -30,10 +31,16 @@ class Program:
     def build_progtbl( cls ):
         # Loop through every subclass of Program
         for sub in cls.__subclasses__( ):
-            # Add this program to the table
-            Program.progtbl.append( sub )
-            # Iterate through this program's subclasses
-            sub.build_progtbl( )
+            # Get the file for this prog
+            fname = "dat/progs/" + sub.__name__.lower()
+            # Make sure the corresponding file exists
+            if os.path.isfile( fname ):
+                # Store this file's hash
+                sub.checksum = md5_check( fname )
+                # Add this program to the table
+                Program.progtbl.append( sub )
+                # Iterate through this program's subclasses
+                sub.build_progtbl( )
 
     # Get a program by name
     @staticmethod
@@ -436,6 +443,14 @@ class Program:
         # Could not contact the child program
         self.destin = None
 
+# Generate a md5 checksum for a file
+def md5_check( path ):
+    check = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter( lambda: f.read(4096), b"" ):
+            check.update(chunk)
+    return check.hexdigest( )
+
 # The command interpreting shell program
 # Extend this to implement unique shells
 class Shell( Program ):
@@ -504,7 +519,18 @@ class Shell( Program ):
                     return self.run
 
             # Check if this command is an external program
-            pclass = Program.find_prog( cmd )
+            pclass = None
+            try:
+                # Get all the executables on this host's bin folder
+                _, progs = self.host.list_dir( "/bin", self.user )
+                # See if this command is one of them
+                if cmd in progs:
+                    # Try to execute this file
+                    pclass = self.host.exec_file( "/bin/" + cmd, self.user )
+            except PhreaknetOSError as e:
+                # We hit some sort of error
+                self.error( e.args[0] )
+                return self.run
 
             if cmd in self.sh_ctbl:
                 # Command was an internal command
