@@ -436,9 +436,10 @@ class Host:
 
         return True
 
-    # Returns true if this user has privlage to preform this operation
-    # Oper: Read = 0, Write = 1, Execute = 2
-    def path_priv( self, path, user, oper ):
+    # Get the inode data for any file on this host
+    # Returns a list of the following
+    # [ "rwxrwxrwx", "owner", "group" ]
+    def get_priv( self, path ):
         # Fix the path
         path = self.respath( path )
         # Check if we're accessing a file or a directory
@@ -452,25 +453,31 @@ class Host:
             file = basepath + "/." + os.path.basename( path ) + ".inode"
         else:
             # Invalid path
+            print( path )
             raise PhreaknetOSError( "No such file or directory" )
         # Make sure this directory actualy contains a inode file
         if not os.path.isfile( file ):
-            return False
+            raise PhreaknetOSError( "Permission denied" )
+
+        # Load the privs
+        with open( file ) as dp:
+            # Format and return the list
+            return dp.readline( ).strip( ).split( )
+
+    # Returns true if this user has privlage to preform this operation
+    # Oper: Read = 0, Write = 1, Execute = 2
+    def path_priv( self, path, user, oper ):
+        # Fix the path
+        path = self.respath( path )
+
+        # Get the privs
+        privs = self.get_priv( path )
 
         # root can do whatever the hell he wants (prevents infinite recursion)
         if user == "root": return True
 
         # Get all groups this user is in
         groups = self.get_groups( user )
-
-        # Store the privs for this directory
-        privs = ""
-        # Load the privs
-        with open( file ) as dp:
-            privs = dp.readline( ).strip( )
-
-        # Split privs
-        privs = privs.split( )
 
         # Is this user the owner and a group member?
         if user == privs[1] and privs[2] in groups:

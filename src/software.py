@@ -323,6 +323,11 @@ class Program:
         # No next function was provided
         # NOTE: has to be done here, cannot be done in method declaration
         if nfunc is None: nfunc = self.kill
+        # Did we get any data?
+        if not lines: return nfunc
+        # Format columns if necisary
+        if type( lines[0] ) is list:
+            lines = format_cols( lines )
         # If the file's short enough just dump it
         if len( lines ) <= self.size[1] or cat:
             for ln in lines:
@@ -663,12 +668,39 @@ class LS( Program ):
     def run( self ):
         # List all the files and directories at the path
         dnames, fnames = self.host.list_dir( self.cwd, self.user )
+        # Add implied dirs
+        dnames.append( "." )
+        # Can't go up from the root dir
+        if self.cwd != "/": dnames.append( ".." )
         # Add the slash to the end
         dnames[:] = [dn + "/" for dn in dnames]
         # Merge the lists
         fnames.extend( dnames )
+        # Sort the list
+        fnames.sort( )
+        # Store output
+        out = []
+        # Iterate through all the enteries
+        for df in fnames:
+            # Get the path to the actual file
+            fpath = self.host.respath( self.cwd + "/" + os.path.normpath( df ) )
+            # Get the inode data for this file
+            fline = self.host.get_priv( fpath )
+            # Is this a file or a directory?
+            if df.endswith( "/" ):
+                fline[0] = "d" + fline[0]
+            else:
+                fline[0] = "-" + fline[0]
+            # Get the file size
+            fline.append( str( os.path.getsize( fpath ) ) )
+            # Get the last modified date
+            fline.append( time_ls( os.path.getmtime( fpath ) ) )
+            # Stick the filename on
+            fline.append( df )
+            # Add this line to the output
+            out.append( fline )
         # Start the pager
-        return self.pager( sorted(fnames) )
+        return self.pager( out )
 
 # List the process tabke
 class PS( Program ):

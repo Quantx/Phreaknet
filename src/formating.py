@@ -55,6 +55,11 @@ def time_hms( tm ):
     # Print formated output
     return "%02d:%02d:%02d" % ( hrs, min, tm )
 
+# Conver an integer (in seconds) into the format seen with LS
+# EX: "Mar 12 16:47"
+def time_ls( tm ):
+    return time.strftime( "%b %d %H:%M" )
+
 # Move the cursor to a postion on the screen
 # Can either be a set of coords or a tuple
 # (0, 0) is the top left cell
@@ -89,3 +94,35 @@ def ansi_clear_line( ):
 # Invert the foreground and background colors for some text
 def ansi_invert( msg ):
     return "\x1B[7M%s\x1B[27M" % msg
+
+# Format a matrix of strings
+# NOTE: Each row MUST have the save length
+# Returns an array of evenly spaced strings
+
+def format_cols( rows ):
+    # Return if nothing
+    if not rows: return ""
+    # Start by building sizes
+    # Store the max size of each col
+    sizes = [0] * len( rows[0] )
+    # Iterate through each row
+    for r in rows:
+        # Enumerate through each column in the row
+        for i, s in enumerate( r ):
+            # Set the new max length
+            sizes[i] = max( sizes[i], len( str( s ) ) )
+    # Store output
+    out = []
+    # Now pad each item with the correct number of spaces
+    for r in rows:
+        # Add a new line
+        out.append( "" )
+        for i, s in enumerate( r ):
+            # Calculate how many spaces to add + 1 for column spacing
+            spc = " " * ( sizes[i] - len( str( s ) ) )
+            # Format output line
+            out[-1] += str( s ) + spc + " "
+        # Remove excess whitespace
+        out[-1] = out[-1].strip()
+    # Return the result
+    return out
