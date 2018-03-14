@@ -501,7 +501,6 @@ class Shell( Program ):
             if cmd == "sudo":
                 # Only members of the sudo group can run this
                 if "sudo" in self.host.get_groups( self.user ):
-                    print( self.host.get_groups( self.user ) )
                     # We're sudo now
                     self.sh_sudo = True
                     # Did we get anything other than sudo?
@@ -662,19 +661,14 @@ class SSH( Program ):
 class LS( Program ):
 
     def run( self ):
-        try:
-            # List all the files and directories at the path
-            dnames, fnames = self.host.list_dir( self.cwd, self.user )
-            # Add the slash to the end
-            dnames[:] = [dn + "/" for dn in dnames]
-            # Merge the lists
-            fnames.extend( dnames )
-            # Start the pager
-            return self.pager( sorted(fnames) )
-        except PhreaknetOSError as e:
-            # An in-game error occured, print it out
-            self.error( e.args[0] )
-            return self.kill
+        # List all the files and directories at the path
+        dnames, fnames = self.host.list_dir( self.cwd, self.user )
+        # Add the slash to the end
+        dnames[:] = [dn + "/" for dn in dnames]
+        # Merge the lists
+        fnames.extend( dnames )
+        # Start the pager
+        return self.pager( sorted(fnames) )
 
 # List the process tabke
 class PS( Program ):
@@ -740,21 +734,17 @@ class Kill( Program ):
     def run( self ):
         # Did the user specify a PID?
         if self.params:
-            # Make sure we were given a job ID
-            try:
-                # Convert the input to an integer
-                cpid = int( float( self.params[0] ) )
-                # Make sure this PID is 2 bytes
-                if cpid < 0 or cpid > 65535: raise ValueError( "Not 2 bytes" )
-                # See if a process with this ID even exists
-                if self.host.get_pid( cpid ) is None:
-                    self.error( "no such process" )
-                # Run the kill command on this host
-                elif not self.host.kill( cpid, self.user ):
-                    self.error( "permission denied" )
-            except ValueError:
-                # We were not given a valid PID
-                self.error( "arguments must be process or job IDs" )
+            # Convert the input to an integer
+            cpid = int( float( self.params[0] ) )
+            # Make sure this PID is 2 bytes
+            if cpid < 0 or cpid > 65535:
+                raise PhreaknetValueError( "arguments must be process or job IDs" )
+            # See if a process with this ID even exists
+            if self.host.get_pid( cpid ) is None:
+                self.error( "no such process" )
+            # Run the kill command on this host
+            elif not self.host.kill( cpid, self.user ):
+                self.error( "permission denied" )
         else:
             self.error( "usage: kill <pid>" )
 
