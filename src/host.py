@@ -60,6 +60,7 @@ class Host:
             else:
                 return ip
 
+    # Generate a new unique ID
     @staticmethod
     def new_id( ):
         # Loop until we get an unused ID
@@ -332,8 +333,15 @@ class Host:
             if proc.destin is None:
                 # Store time at start of execution
                 extime = time.time( )
-                # Execute process
-                proc.func = proc.func( )
+                try:
+                    # Execute process
+                    proc.func = proc.func( )
+                # Catch any ingame errors
+                except PhreaknetException as e:
+                    # Print the error
+                    proc.error( e.args[0] )
+                    # Fatal error, naturally
+                    proc.func = proc.kill
                 # Calculate processor time
                 proc.ptime += time.time( ) - extime
 
@@ -504,8 +512,6 @@ class Host:
 
         # Walk the path and get the contents of this dir
         _, dnames, fnames = next( os.walk(path) )
-        # Add these directories
-        dnames.extend( [".", ".."] );
         # Only return files that we are allowed to view
         fnames[:] = [fn for fn in fnames if os.path.isfile( path + "/." + fn + ".inode" )]
         # Only return directorys that we are allowed to view
@@ -574,7 +580,7 @@ class Host:
         # Concatinate arrays of strings
         if not isinstance( data, str ): data = "\n".join( data ) + "\n"
         # Make sure we have permission to access this file
-        if not self.path_priv( path, user, 0 ):
+        if not self.path_priv( path, user, 1 ):
             raise PhreaknetOSError( "Permission denied" )
         # Make sure this is in fact a file
         if not os.path.isfile( path ):
@@ -711,8 +717,6 @@ class Host:
             return False
         # Build the new user's passwd file line
         paswd = "%s:x:%s:%s:,,,:/usr/%s:/bin/shell\n" % (nuser, self.nuid, self.ngid, nuser)
-        # Make sure we can preform this operation
-        if not self.path_priv( "/sys/passwd", user, 1 ): return False
         # Try to build the group file
         if not self.add_group( nuser, user ): return False
         # Create the user
@@ -729,9 +733,8 @@ class Host:
     # string | ngroup ... group to add to the system
     # string | user ..... user preforming the operation
     def add_group( self, ngroup, user ):
-        # Make sure we have permission and that the group doesn't already exist
-        if ( not self.path_priv( "/sys/group", user, 1 )
-        or ngroup in self.get_groups( ) ): return False
+        # Make sure this group doesn't already exist
+        if ngroup in self.get_groups( ): return False
         # Build the new group file line
         group = "%s:x:%s:\n" % (ngroup, self.ngid)
         # Create the group
@@ -745,18 +748,15 @@ class Host:
     # string | nuser ... user to delete from the system
     # string | user .... user preforming the operation
     def del_user( self, nuser, user ):
-        # Make sure we have privs to access to read and write these files
-        if not self.path_priv( "/sys/passwd", user, 1 ): return False
-        if not self.path_priv( "/sys/passwd", user, 0 ): return False
         # Make sure this user has an account
         if not self.check_user( nuser, user ): return False
         # Make sure this user isn't logged in
         for prc in self.ptbl:
             # Is this a background process or not?
             if prc.user == nuser and prc.tty >= 0:
-                return False
-        # Start by trying to delete this user's group
-        if not self.del_group( nuser, user ): return False
+                raise PhreaknetOSError( "user is currently logged in" )
+        # Start by deleting this user's group
+        self.del_group( nuser, user )
         # We're good, let's terminate this account
         users = self.read_lines( "/sys/passwd", user )
         # Strip this user from both lists
@@ -770,13 +770,51 @@ class Host:
     # string | ngroup ... the group to delete
     # string | user ..... the user preforming the operation
     def del_group( self, ngroup, user ):
-        # Make sure we have privs to access to read and write these files
-        if not self.path_priv( "/sys/group",  user, 1 ): return False
-        if not self.path_priv( "/sys/group",  user, 0 ): return False
         # We're good, lets remove this group
         groups = self.read_lines( "/sys/group", user )
         # Strip this user from the groups
         groups[:] = [gr for gr in groups if not gr.startswith( ngroup )]
+        # Re-write the file
+        self.write_file( "/sys/group", user, groups )
+
+    # Join a group
+    # string | nuser ... the user joining the group
+    # string | group ... the group to join
+    # string | user .... the user preforming the operation
+    def join_group( self, nuser, group, user ):
+        # Make sure this user exists
+        if not self.check_user( nuser, user ): return False
+        # Make sure this user isn't already in this group
+        if nuser in self.get_users( group ): return False
+        # Read the group file
+        groups = self.read_lines( "/sys/group", user )
+        # Find our group
+        groups[:] = [gr + "," + nuser for gr in groups if gr.split(":")[0] == group ]
+        # Re-write the file
+        self.write_file( "/sys/group", user, groups )
+        # Return success
+        return True
+
+
+    # Leave a group
+    # string | nuser ... the user leaving the group
+    # string | group ... the group to leave
+    # string | user .... the user preforming the operation
+    def leave_group( self, nuser, group, user ):
+        # Read the group file
+        groups = self.read_lines( "/sys/group", user )
+        # Find our group
+        for i, gln in enumerate( groups ):
+            # Split the data
+            gr = gln.split( ":" )
+            # Check if this is our group
+            if group != gr[0]: continue
+            # Remove ourselves from this group
+            gr[3] = gr[3].replace( "," + nuser, "" )
+            # Do a second pass incase we're the first member
+            gr[3] = gr[3].replace( nuser, "" )
+            # Rebuild and replace
+            groups[i] = ":".join( gr )
         # Re-write the file
         self.write_file( "/sys/group", user, groups )
         # Return success

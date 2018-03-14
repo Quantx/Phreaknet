@@ -421,6 +421,8 @@ class Client:
                 nhst = Host( "Gateway_" + str( randint( 100000, 999999 ) ) )
                 # Add our account to this gateway
                 nhst.add_user( self.account, "root" )
+                # Give this account root access
+                nhst.join_group( self.account.username, "sudo", "root" )
                 # Log the creation
                 xlog( "Requested a new gateway: " + nhst.hostname + "@" + nhst.ip, self )
                 # Copy the IP address
