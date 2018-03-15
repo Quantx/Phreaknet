@@ -325,9 +325,6 @@ class Program:
         if nfunc is None: nfunc = self.kill
         # Did we get any data?
         if not lines: return nfunc
-        # Format columns if necisary
-        if type( lines[0] ) is list:
-            lines = format_cols( lines )
         # If the file's short enough just dump it
         if len( lines ) <= self.size[1] or cat:
             for ln in lines:
@@ -700,7 +697,7 @@ class LS( Program ):
             # Add this line to the output
             out.append( fline )
         # Start the pager
-        return self.pager( out )
+        return self.pager( format_cols( out ) )
 
 # List the process tabke
 class PS( Program ):
@@ -721,7 +718,7 @@ class PS( Program ):
             out.append( [ prc.pid, vtty, ptm, prc.name ] )
 
         # Terminate the program
-        return self.pager( out )
+        return self.pager( format_cols( out, 1, 2 ) )
 
 # List information about a host
 class Hostname( Program ):

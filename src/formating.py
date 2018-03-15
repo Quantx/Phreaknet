@@ -99,7 +99,10 @@ def ansi_invert( msg ):
 # NOTE: Each row MUST have the save length
 # Returns an array of evenly spaced strings
 
-def format_cols( rows ):
+# list (list (string)) | rows ... matrix of strings to print
+# integer              | spac ... spacing between columns
+# integer              | ljst ... spaces to the left of the first col
+def format_cols( rows, spac=1, ljst=0 ):
     # Return if nothing
     if not rows: return ""
     # Start by building sizes
@@ -121,8 +124,8 @@ def format_cols( rows ):
             # Calculate how many spaces to add + 1 for column spacing
             spc = " " * ( sizes[i] - len( str( s ) ) )
             # Format output line
-            out[-1] += str( s ) + spc + " "
+            out[-1] += str( s ) + spc + ( " " * spac )
         # Remove excess whitespace
-        out[-1] = out[-1].strip()
+        out[-1] = ( " " * ljst ) + out[-1].strip()
     # Return the result
     return out
