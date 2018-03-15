@@ -453,7 +453,6 @@ class Host:
             file = basepath + "/." + os.path.basename( path ) + ".inode"
         else:
             # Invalid path
-            print( path )
             raise PhreaknetOSError( "No such file or directory" )
         # Make sure this directory actualy contains a inode file
         if not os.path.isfile( file ):

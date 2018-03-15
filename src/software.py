@@ -483,6 +483,7 @@ class Shell( Program ):
             "cd"    : { "fn" : self.cdir,  "help" : "cd [path]||change the working directory", },
             "pwd"   : { "fn" : self.pwd,   "help" : "pwd||print the current working directory", },
             "clear" : { "fn" : self.clear, "help" : "clear||clear the terminal screen", },
+            "run"   : { "fn" : self.rprog, "help" : "run <file> [params]||execute a file with args", },
         }
 
     # The call to start the command processor
@@ -543,7 +544,7 @@ class Shell( Program ):
                     puser = "root"
                 # Command is an external program
                 prg = pclass( puser, self.cwd, self.tty, self.size,
-                              ("127.0.0.1", self.pid), self.sh_args )
+                            ("127.0.0.1", self.pid), self.sh_args )
                 # Start the new program and set the destination
                 self.destin = self.host.start( prg )
             else:
@@ -608,6 +609,31 @@ class Shell( Program ):
     # Clear the terminal screen
     def clear( self ):
         self.printl( ansi_clear( ) )
+        return self.run
+
+    # Run a program at the path
+    def rprog( self ):
+        # Return if nothing to do
+        if not self.sh_args: return self.run
+        # Extract the program
+        fprg = self.sh_args.pop( 0 )
+        # Calculate the path
+        fprg = os.path.normpath( os.path.join( self.cwd, fprg ) )
+        try:
+            # Attempt execution
+            pclass = self.host.exec_file( fprg, self.user )
+            # Are we root for this command?
+            puser = self.user
+            if self.sh_sudo: puser = "root"
+            # Instantiate program
+            prg = pclass( puser, self.cwd, self.tty, self.size,
+                        ("127.0.0.1", self.pid), self.sh_args )
+            # Run program
+            self.destin = self.host.start( prg )
+        except PhreaknetOSError as e:
+            # An ingame error occured, print it
+            self.error( e.args[0] )
+        # We're done here
         return self.run
 
 # Starts a Shell session on a remote host
@@ -875,6 +901,12 @@ class Delgroup( Program ):
 
 # Add or remove a user from a group
 class Usermod( Program ):
+
+    def run( self ):
+        pass
+
+# Display whos currently online
+class Who( Program ):
 
     def run( self ):
         pass
