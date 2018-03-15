@@ -813,11 +813,21 @@ class Mkdir( Program ):
     def run( self ):
         # Did the user specify a directory to make
         if self.params:
-            # Create the actual directory
-            os.mkdir( "dir/" + self.host.hostid + self.cwd + "/" + self.params[0] )
-            # Build the inode file with default privs
-            with open( "dir/" + self.host.hostid + self.cwd + "/" + self.params[0] + "/.inode", "w" ) as fd:
-                fd.write( "rwxrwxr-x " + self.user + " " + self.user )
+            # Build the file path
+            dpath = os.path.normpath( os.path.join( self.cwd, self.params[0] ) )
+            # Confirm that we can edit the parent directory
+            if not self.host.path_priv( os.path.dirname( dpath ), self.user, 1 ):
+                raise PhreaknetOSError( "Permission denied" )
+            # Catch file exist errors
+            try:
+                # Create the actual directory
+                os.mkdir( "dir/" + self.host.hostid + dpath )
+                # Build the inode file with default privs
+                with open( "dir/" + self.host.hostid + dpath + "/.inode", "w" ) as fd:
+                    fd.write( "rwxrwxr-x " + self.user + " " + self.user )
+            except FileExistsError:
+                # The directory already exists
+                self.error( "File exists" )
         else:
             # No params were given
             self.error( "missing operand" )
