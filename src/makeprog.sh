@@ -8,7 +8,7 @@
 # NOTE: Remember to [git add] the file once it's generated so others can run
 # your program.
 
-if [ $# -gt 0 ]; then
+if [ $# -eq 2 ]; then
     head -c $2 < "/dev/urandom" > "../dat/progs/$1"
 else
     echo "usage: ./makeprog.sh <filename> <number of bytes>"
