@@ -167,12 +167,18 @@ class Client:
         # What tty are we connecting to?
         self.mg_tty = ""
 
+        # True until proven false
+        self.is_robot = True
+
         # If this is false, the client will be removed
         # DO NOT manually set this, call self.kill()
         self.alive = True
 
         # Print the login banner
-        self.login_banner( "Welcome to PhreakNET" )
+        self.stdout( "\r\n*** Welcome to PhreakNET ***\r\n\n" )
+        self.stdout( "If you are reading this then you have not provided sufficient proof that you\r\n" )
+        self.stdout( "are not a robot. Please reconnect with a modern Telnet client. You will be\r\n" )
+        self.stdout( "automatically disconnected within 5 seconds.\r\n" )
 
     # Override this to handle output
     def stdout( self, msg ):
@@ -558,7 +564,10 @@ class TelnetClient( Client ):
                 # Check if this socket is still connected
                 if not data: return None
                 # Process IAC commands
-                if self.iac( data ): continue
+                if self.iac( data ):
+                    # Robots don't send IAC commands
+                    self.is_robot = False
+                    continue
                 # Not an IAC command so decode the data
                 data = data.decode( )
                 # Nothing left to handle

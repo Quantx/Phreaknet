@@ -60,8 +60,11 @@ def main( ):
             try:
                 # See if this client is alive
                 if c.alive:
+                    # Kill any robots, after 5 seconds
+                    if c.is_robot and time.time( ) - c.first > 5:
+                        c.kill( )
                     # Parse any new input
-                    if c.get_stdin( ):
+                    elif c.get_stdin( ):
                         # Fetch out put from the gateway
                         c.get_stdout( )
                         # Add the client to the end of the queue
