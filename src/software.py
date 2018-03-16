@@ -158,6 +158,10 @@ class Program:
     def stdout( self, data ):
         self.host.stdout( self.origin, data )
 
+    # Join a path to the current working directory
+    def respath( self, path ):
+        return os.path.normpath( os.path.join( self.cwd, path ) )
+
     # Use readline as follows to request input for the next function
     # Usage:
     # function | nfunc .... function to call after readline returns
@@ -171,7 +175,7 @@ class Program:
     #     return self.readline( myNextFunc, ... )
     #
     # def myNextFunc( self ):
-    #     print( self.rl_line )
+    #     self.println( self.rl_line )
     def readline( self, nfunc, prompt="?", afunc=None, secure=False, purge=True, strip=True ):
         # Purge stdin / stdout
         self.rl_line = ""
@@ -573,7 +577,7 @@ class Shell( Program ):
     def cdir( self ):
         if self.sh_args:
             # Calculate the correct directory
-            sol = os.path.normpath( os.path.join( self.cwd, self.sh_args[0] ) )
+            sol = self.respath( self.sh_args[0] )
 
             # Is this path a file?
             if os.path.isfile( "dir/" + self.host.hostid + sol ):
@@ -615,10 +619,8 @@ class Shell( Program ):
     def rprog( self ):
         # Return if nothing to do
         if not self.sh_args: return self.run
-        # Extract the program
-        fprg = self.sh_args.pop( 0 )
         # Calculate the path
-        fprg = os.path.normpath( os.path.join( self.cwd, fprg ) )
+        fprg = self.respath( self.sh_args.pop( 0 ) )
         try:
             # Attempt execution
             pclass = self.host.exec_file( fprg, self.user )
@@ -689,8 +691,11 @@ class SSH( Program ):
 class LS( Program ):
 
     def run( self ):
+        # Path to list
+        lpath = self.cwd
+        if self.params: lpath = self.respath( self.params[0] )
         # List all the files and directories at the path
-        dnames, fnames = self.host.list_dir( self.cwd, self.user )
+        dnames, fnames = self.host.list_dir( lpath, self.user )
         # Add implied dirs
         dnames.append( "." )
         # Can't go up from the root dir
@@ -814,20 +819,9 @@ class Mkdir( Program ):
         # Did the user specify a directory to make
         if self.params:
             # Build the file path
-            dpath = os.path.normpath( os.path.join( self.cwd, self.params[0] ) )
-            # Confirm that we can edit the parent directory
-            if not self.host.path_priv( os.path.dirname( dpath ), self.user, 1 ):
-                raise PhreaknetOSError( "Permission denied" )
-            # Catch file exist errors
-            try:
-                # Create the actual directory
-                os.mkdir( "dir/" + self.host.hostid + dpath )
-                # Build the inode file with default privs
-                with open( "dir/" + self.host.hostid + dpath + "/.inode", "w" ) as fd:
-                    fd.write( "rwxrwxr-x " + self.user + " " + self.user )
-            except FileExistsError:
-                # The directory already exists
-                self.error( "File exists" )
+            dpath = self.respath( self.params[0] )
+            # Make the directory
+            self.host.make_dir( dpath, self.user )
         else:
             # No params were given
             self.error( "missing operand" )
@@ -920,3 +914,44 @@ class Who( Program ):
 
     def run( self ):
         pass
+
+# Delete a file or directory
+class Rm( Program ):
+
+    def run( self ):
+        # Did we get a file to delete?
+        if not self.params:
+            self.error( "missing operand" )
+            return self.kill
+
+        # Files to remove
+        rfiles = []
+        # Options
+        ropts = ""
+        # Decode options
+        for opt in self.params:
+            # Opts start with a dash
+            if opt.startswith( "-" ):
+                ropts += opt[1:]
+            else:
+                # It's not an opt, must be a file/dir
+                rfiles.append( opt )
+
+        # Remove files
+        for rfn in rfiles:
+            # Calculate the abs path to the file
+            rfpath = self.respath( rfn )
+            try:
+                # Recursive or Directory mode
+                if "r" in ropts or "d" in ropts:
+                    # Delete the dir, "r" in opts, decidess if this is recursive
+                    self.host.remove_dir( rfpath, self.user, "r" in ropts )
+                # Regular file mode
+                else:
+                    # Delete the file
+                    self.host.remove_file( rfpath, self.user )
+            except PhreaknetOSError as e:
+                # Print the error but keep going
+                self.error( e.args[0] )
+        # We're done here
+        return self.kill

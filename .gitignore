@@ -6,3 +6,5 @@
 *.usr
 # Ignore the dir/ directory
 dir/*
+# Ignore Inode data files
+*.inode

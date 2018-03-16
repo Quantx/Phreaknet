@@ -23,6 +23,7 @@ host_progs = [
     "porthack",
     "hostname",
     "mkdir",
+    "rm",
     "adduser",
     "deluser",
     "addgroup",
@@ -124,11 +125,11 @@ class Host:
         os.makedirs( "dir/" + self.hostid + "/usr" )
 
         # Build the .inode files                           owner, group, other = perms    owner group
-        with open( "dir/" + self.hostid + "/.inode",     "w" ) as fd: fd.write( "r-xr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/sys/.inode", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/bin/.inode", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/log/.inode", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
-        with open( "dir/" + self.hostid + "/usr/.inode", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
+        with open( "dir/." + self.hostid + ".inode",     "w" ) as fd: fd.write( "r-xr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/.sys.inode", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/.bin.inode", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
+        with open( "dir/" + self.hostid + "/.log.inode", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
+        with open( "dir/" + self.hostid + "/.usr.inode", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
 
         # Build the passwd file
         with open( "dir/" + self.hostid + "/sys/passwd", "w" ) as fd: fd.write( "root:x:0:0:root,,,:/usr/root:/bin/shell\n" )
@@ -139,7 +140,7 @@ class Host:
 
         # Build the user directory for the root account
         os.makedirs( "dir/" + self.hostid + "/usr/root" )
-        with open( "dir/" + self.hostid + "/usr/root/.inode", "w" ) as fd: fd.write( "rwx------ root root" )
+        with open( "dir/" + self.hostid + "/usr/.root.inode", "w" ) as fd: fd.write( "rwx------ root root" )
 
         # Import all the base progs into /bin
         self.import_progs( host_progs, "/bin" )
@@ -393,8 +394,8 @@ class Host:
     # Convert in game paths to actual system paths
     def respath( self, path ):
         if not path.startswith( "dir/" + self.hostid ):
-            return "dir/" + self.hostid + path
-        return path
+            path = "dir/" + self.hostid + path
+        return os.path.normpath( path )
 
     # Set privlages for a direcory
     # Returns true if privs were altered
@@ -436,24 +437,27 @@ class Host:
 
         return True
 
+    # Get the path to the inode data for a file
+    def get_inode( self, path ):
+        # Fix the path
+        path = self.respath( path )
+        # Return the path to the inode
+        return os.path.dirname( path ) + "/." + os.path.basename( path ) + ".inode"
+
     # Get the inode data for any file on this host
     # Returns a list of the following
     # [ "rwxrwxrwx", "owner", "group" ]
     def get_priv( self, path ):
         # Fix the path
         path = self.respath( path )
-        # Check if we're accessing a file or a directory
-        if os.path.isdir( path ):
-            # Locate the directorie's priv file
-            file = path + "/.inode"
-        elif os.path.isfile( path ):
-            # Update path
-            basepath = os.path.dirname( path )
-            # Get a path to the this file's .filename.inode partner
-            file = basepath + "/." + os.path.basename( path ) + ".inode"
-        else:
-            # Invalid path
+
+        # Is this a valid path?
+        if not os.path.exists( path ):
             raise PhreaknetOSError( "No such file or directory" )
+
+        # Get the inode file
+        file = self.get_inode( path )
+
         # Make sure this directory actualy contains a inode file
         if not os.path.isfile( file ):
             raise PhreaknetOSError( "Permission denied" )
@@ -521,7 +525,7 @@ class Host:
         # Only return files that we are allowed to view
         fnames[:] = [fn for fn in fnames if os.path.isfile( path + "/." + fn + ".inode" )]
         # Only return directorys that we are allowed to view
-        dnames[:] = [dn for dn in dnames if os.path.isfile( path + "/" + dn + "/.inode" )]
+        dnames[:] = [dn for dn in dnames if os.path.isfile( path + "/." + dn + ".inode" )]
         # Return the results
         return ( dnames, fnames )
 
@@ -600,6 +604,58 @@ class Host:
     def append_file( self, path, user, data ):
         # Call the write function with append mode
         return self.write_file( path, user, data, True )
+
+    # Make a directory
+    def make_dir( self, path, user ):
+        # Fix the path
+        path = self.respath( path )
+        # Confirm that we can edit the parent directory
+        if not self.path_priv( os.path.dirname( path ), user, 1 ):
+            raise PhreaknetOSError( "Permission denied" )
+        # Catch file exist errors
+        try:
+            # Create the actual directory
+            os.mkdir( path )
+            # Build the inode file with default privs
+            with open( self.get_inode( path ), "w" ) as fd:
+                fd.write( "rwxrwxr-x " + user + " " + user )
+        except FileExistsError:
+            # The directory already exists
+            raise PhreaknetOSError( "File exists" )
+
+    # Delete an object from the filesystem
+    # string  | path ... the object to delete
+    # string  | user ... the user preforming the action
+    # integer | dirs ... can we delete dirs? 0=NO, 1=Only_Empty, 2=Recursive
+    def remove_file( self, path, user, dirs=0 ):
+        # Fix the path
+        path = self.respath( path )
+        # Make sure we have permission to delete (write)
+        if not self.path_priv( path, user, 1 ):
+            raise PhreaknetOSError( "Permission denied" )
+        # Catch any OSErros
+        try:
+            # Which deletion method are we using?
+            if dirs == 2:
+                # Delete the directory and it's contents
+                shutil.rmtree( path )
+            elif dirs == 1:
+                # Delete the directory
+                os.rmdir( path )
+            else:
+                # Delete the file
+                os.remove( path )
+            # Delete the inode data
+            os.remove( self.get_inode( path ) )
+        except OSError as e:
+            # Reformat the error as a PhreaknetOSError
+            raise PhreaknetOSError( e.strerror )
+
+    # Delete a folder (and its contents)
+    def remove_dir( self, path, user, recur=False ):
+        opt = 1
+        if recur: opt = 2
+        return self.remove_file( path, user, opt )
 
     # List all users on the system or in a specific group
     # string (optional) | group ... the group to get users from
@@ -731,7 +787,7 @@ class Host:
         self.nuid += 1
         # Make this user's home directory
         os.makedirs( "dir/" + self.hostid + "/usr/" + nuser )
-        with open( "dir/" + self.hostid + "/usr/" + nuser + "/.inode", "w" ) as fd: fd.write( "rwx------ " + nuser + " " + nuser )
+        with open( "dir/" + self.hostid + "/usr/." + nuser + ".inode", "w" ) as fd: fd.write( "rwx------ " + nuser + " " + nuser )
         # Return success
         return True
 

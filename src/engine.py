@@ -29,8 +29,6 @@ def main( ):
 
     # Build the program table
     Program.build_progtbl( )
-    # Dump the program table
-    # for p in Program.progtbl: print( p.__name__ )
 
     # Load all hosts from disk
     Host.load( )
