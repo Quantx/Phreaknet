@@ -27,6 +27,9 @@ def main( ):
     # Create the hostdir directory if it doesn't exist
     if not os.path.exists( "dir" ): os.makedirs( "dir" )
 
+    # Create the err directory for storing error reports
+    if not os.path.exists( "err" ): os.makedirs( "err" )
+
     # Build the program table
     Program.build_progtbl( )
 
@@ -40,6 +43,7 @@ def main( ):
     # Load all accounts into the system
     Account.load( )
 
+    # Stores time between loops
     lastloop = time.time( )
 
     # Start loop
@@ -53,17 +57,24 @@ def main( ):
         for _ in range( clen ):
             # Get the next client to update
             c = gameserv.clients.pop( 0 )
-            # See if this client is alive
-            if c.alive:
-                # Parse any new input
-                if c.get_stdin( ):
-                    # Fetch out put from the gateway
-                    c.get_stdout( )
-                    # Add the client to the end of the queue
-                    gameserv.clients.append( c )
-                else:
-                    # Client not connected to Phreaknet
-                    c.kill( )
+            try:
+                # See if this client is alive
+                if c.alive:
+                    # Parse any new input
+                    if c.get_stdin( ):
+                        # Fetch out put from the gateway
+                        c.get_stdout( )
+                        # Add the client to the end of the queue
+                        gameserv.clients.append( c )
+                    else:
+                        # Client not connected to Phreaknet
+                        c.kill( )
+            # An exception has occured
+            except Exception as e:
+                # Print it
+                traceback.print_exec( )
+                # Kill this client
+                c.kill( )
 
         # Update all hosts
         for h in Host.hosts:

@@ -58,7 +58,7 @@ def time_hms( tm ):
 # Conver an integer (in seconds) into the format seen with LS
 # EX: "Mar 12 16:47"
 def time_ls( tm ):
-    return time.strftime( "%b %d %H:%M" )
+    return time.strftime( "%b %d %H:%M", time.localtime(tm) )
 
 # Move the cursor to a postion on the screen
 # Can either be a set of coords or a tuple
