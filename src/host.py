@@ -22,6 +22,8 @@ host_progs = [
     "ssh",
     "porthack",
     "hostname",
+    "cat",
+    "more",
     "mkdir",
     "rm",
     "adduser",
@@ -132,7 +134,7 @@ class Host:
         with open( "dir/" + self.hostid + "/.usr.inode", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
 
         # Build the passwd file
-        with open( "dir/" + self.hostid + "/sys/passwd", "w" ) as fd: fd.write( "root:x:0:0:root,,,:/usr/root:/bin/shell\n" )
+        with open( "dir/" + self.hostid + "/sys/passwd", "w" ) as fd: fd.write( "root:x:0:0:root:,,,:/usr/root:/bin/shell\n" )
         with open( "dir/" + self.hostid + "/sys/.passwd.inode", "w" ) as fd: fd.write( "rw-r--r-- root root" )
         # Build the group file
         with open( "dir/" + self.hostid + "/sys/group", "w" ) as fd: fd.write( "root:x:0:\nsudo:x:1:\n" )
@@ -562,7 +564,7 @@ class Host:
 
         # Open the file
         with open( path ) as fd:
-            # Return the contents
+            # Store the contents
             return fd.read( )
 
     # Dump the contents of a file to an array of strings
@@ -673,6 +675,8 @@ class Host:
                 if group == gr[0]:
                     # This is faster than just appending
                     users = gr[3].split( "," )
+                    # Correct for empty list
+                    if not users[0]: users = []
                     # We're done here
                     break
         # Are we searching the whole system?
@@ -846,12 +850,27 @@ class Host:
     def join_group( self, nuser, group, user ):
         # Make sure this user exists
         if not self.check_user( nuser, user ): return False
+        # Get all the users currently in this group
+        ugrp = self.get_users( group )
+        # Are we the first in this group?
+        first = ","
+        if not ugrp:
+            first = ""
         # Make sure this user isn't already in this group
-        if nuser in self.get_users( group ): return False
+        elif nuser in ugrp: return False
         # Read the group file
         groups = self.read_lines( "/sys/group", user )
         # Find our group
-        groups[:] = [gr + "," + nuser for gr in groups if gr.split(":")[0] == group ]
+        for i, gr in enumerate( groups ):
+            # Find the group with our name
+            if gr.split( ":" )[0] == group:
+                # Append us to this group
+                groups[i] = gr + first + nuser
+                # We're done here
+                break
+        else:
+            # No group with our name was found
+            return False
         # Re-write the file
         self.write_file( "/sys/group", user, groups )
         # Return success

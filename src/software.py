@@ -955,3 +955,37 @@ class Rm( Program ):
                 self.error( e.args[0] )
         # We're done here
         return self.kill
+
+# Parse the contents of a file through the pager
+class More( Program ):
+
+    def run( self ):
+        # Did we get a file?
+        if self.params:
+            # Calculate the path
+            fpath = self.respath( self.params[0] )
+            # Get the contents of the file
+            lines = self.host.read_lines( fpath, self.user )
+            # Start the pager
+            return self.pager( lines )
+        else:
+            self.error( "usage: more <file>" )
+        # We're done here
+        return self.kill
+
+# Dump the contents of a file
+class Cat( Program ):
+
+    def run( self ):
+        # Did we get a file?
+        if self.params:
+            # Calculate the path
+            fpath = self.respath( self.params[0] )
+            # Get the contents of the file
+            lines = self.host.read_lines( fpath, self.user )
+            # Start the pager
+            return self.pager( lines, self.kill, True )
+        else:
+            self.error( "usage: cat <file>" )
+        # We're done here
+        return self.kill
