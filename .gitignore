@@ -4,6 +4,8 @@
 *.hst
 # Don't push saved User files
 *.usr
+# Don't push error reports
+*.err
 # Ignore the dir/ directory
 dir/*
 # Ignore Inode data files

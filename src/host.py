@@ -13,6 +13,8 @@ import string
 import random
 import shutil
 import binascii
+import uuid
+import traceback
 
 host_progs = [
     "shell",
@@ -63,20 +65,6 @@ class Host:
             else:
                 return ip
 
-    # Generate a new unique ID
-    @staticmethod
-    def new_id( ):
-        # Loop until we get an unused ID
-        while True:
-            # Generate a random 16 digit string
-            id = "".join([random.choice(string.ascii_letters + string.digits) for n in range(16)])
-            # Make sure the ID is unused
-            for h in Host.hosts:
-                if h.hostid == id:
-                    break
-            else:
-                return id
-
     # Load all hosts from disk
     @staticmethod
     def load( ):
@@ -93,7 +81,7 @@ class Host:
 
     def __init__( self, name ):
         # The unique ID of this host
-        self.hostid = Host.new_id( )
+        self.hostid = str( uuid.uuid4( ) )
 
         ### Host info ###
         # Name of the host
@@ -345,6 +333,21 @@ class Host:
                     proc.error( e.args[0] )
                     # Fatal error, naturally
                     proc.func = proc.kill
+                # Catch all other errors
+                except Exception as e:
+                    # Generate a uuid
+                    errid = str( uuid.uuid4( ) )
+                    # Log the report
+                    with open( "err/" + errid + ".err", "w" ) as fd:
+                        # Header for the report
+                        fd.write( "*** Report generated on %s ***\n\n" % time.strftime( "%m/%d/%Y at %H:%M:%S" ) )
+                        # Dump the rest of the report
+                        traceback.print_exc( None, fd )
+                    # Show the user their error report string
+                    proc.error( "%phreaknet: a fatal exception has occured, please pass this string along to a Dev: " + errid )
+                    # Terminate the program
+                    proc.func = proc.kill
+
                 # Calculate processor time
                 proc.ptime += time.time( ) - extime
 
