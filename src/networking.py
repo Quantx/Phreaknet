@@ -580,6 +580,8 @@ class TelnetClient( Client ):
     # Process terminal commands sent form the client
     # Returns true if this was a command string
     def iac( self, data ):
+        # Robots don't send IAC messages
+        self.is_robot = False
         # Process NAWS and record terminal height/width
         np = data.find( b"\xFF\xFA\x1F" )
         if np >= 0:
