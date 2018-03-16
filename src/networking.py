@@ -176,9 +176,9 @@ class Client:
 
         # Print the login banner
         self.stdout( "\r\n*** Welcome to PhreakNET ***\r\n\n" )
-        self.stdout( "If you are reading this then you have not provided sufficient proof that you\r\n" )
-        self.stdout( "are not a robot. Please reconnect with a modern Telnet client. You will be\r\n" )
-        self.stdout( "automatically disconnected within 5 seconds.\r\n" )
+        self.stdout( "If you are reading this then we are unable to verify that you are a human.\r\n" )
+        self.stdout( "You will be automatically disconnected within 5 seconds. Please reconnect\r\n" )
+        self.stdout( "with a modern Telnet client.\r\n" )
 
     # Override this to handle output
     def stdout( self, msg ):
@@ -580,6 +580,8 @@ class TelnetClient( Client ):
     # Process terminal commands sent form the client
     # Returns true if this was a command string
     def iac( self, data ):
+        # Robots don't send IAC messages
+        self.is_robot = False
         # Process NAWS and record terminal height/width
         np = data.find( b"\xFF\xFA\x1F" )
         if np >= 0:
