@@ -638,6 +638,18 @@ class Shell( Program ):
         # We're done here
         return self.run
 
+# Echo text back
+class Echo( Program ):
+
+    def run( self ):
+        # Text to echo
+        ech = ""
+        if self.params: ech = self.params[0]
+        # Echo the text
+        self.println( ech )
+        # We're done here
+        return self.kill
+
 # Starts a Shell session on a remote host
 class SSH( Program ):
 

@@ -18,6 +18,7 @@ import traceback
 
 host_progs = [
     "shell",
+    "echo",
     "ps",
     "ls",
     "kill",
