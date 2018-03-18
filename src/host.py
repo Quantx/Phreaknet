@@ -20,6 +20,7 @@ host_progs = [
     "shell",
     "echo",
     "ps",
+    "worldmap",
     "ls",
     "kill",
     "ssh",
@@ -345,7 +346,7 @@ class Host:
                         # Dump the rest of the report
                         traceback.print_exc( None, fd )
                     # Show the user their error report string
-                    proc.error( "%phreaknet: a fatal exception has occured, please pass this string along to a Dev: " + errid )
+                    proc.error( "phreaknet: a fatal exception has occured, error code: " + errid )
                     # Terminate the program
                     proc.func = proc.kill
 
