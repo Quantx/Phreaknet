@@ -29,7 +29,6 @@ class Worldmap( Program ):
     def run( self ):
         # Configure the bytearray
         self.wm_bar = BitArray( self.size[0] * self.size[1] )
-        print( "SIZE: " + str( self.size[0] * self.size[1] ) )
         # Abort if we cannot read this file
         if self.wm_sf.shapeType != shapefile.POLYGON:
             self.error( "unable to read this map file type" )
@@ -66,24 +65,24 @@ class Worldmap( Program ):
             self.setLine( lpnt[0], lpnt[1], fpnt[0], fpnt[1] )
         # Draw img for debug
         for y in range( 0, self.size[1] ):
+            aln = ""
             for x in range( 0, self.size[0] ):
                 if self.getPix( x, y ):
-                    self.printl( "*" )
+                    aln += "*"
                 else:
-                    self.printl( " " )
-            self.println( )
+                    aln += " "
+            self.println( aln )
         # We're done here
         return self.kill
 
     # Set a pixel
     def setPix( self, x, y ):
         # Normalize
-        x = int( x )
-        y = int( self.size[1] - y )
+        x = round( x )
+        y = round( self.size[1] - y )
         # Make sure this is in bounds
         if x > 0 and x < self.size[0] and y > 0 and y < self.size[1]:
             # Flip the bit
-            print( "PLOT: %d, %d" % (x, y) )
             self.wm_bar[y * self.size[0] + x] = 1
 
     # Get a pixel
@@ -95,10 +94,10 @@ class Worldmap( Program ):
     # https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
     def setLine( self, xa, ya, xb, yb ):
         # Orient everything
-        xa = int( ( xa - self.wm_xmin ) / self.wm_xskw )
-        ya = int( ( ya - self.wm_ymin ) / self.wm_yskw )
-        xb = int( ( xb - self.wm_xmin ) / self.wm_xskw )
-        yb = int( ( yb - self.wm_ymin ) / self.wm_yskw )
+        xa = round( ( xa - self.wm_xmin ) / self.wm_xskw )
+        ya = round( ( ya - self.wm_ymin ) / self.wm_yskw )
+        xb = round( ( xb - self.wm_xmin ) / self.wm_xskw )
+        yb = round( ( yb - self.wm_ymin ) / self.wm_yskw )
         # Calculate Delta X & Y
         dx = xb - xa
         dy = yb - ya
@@ -127,4 +126,4 @@ class Worldmap( Program ):
                         iy += 1
                     else:
                         iy -= 1
-                    err -= 0.1
+                    err -= 1
