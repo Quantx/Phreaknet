@@ -690,8 +690,12 @@ class SSH( Program ):
             spath = dhost.get_shell( self.user )
             # Get the home directory for this user
             hpath = dhost.get_home( self.user )
-            # Attempt to execute the shell program
-            pclass = dhost.exec_file( spath, self.user )
+            try:
+                # Attempt to execute the shell program
+                pclass = dhost.exec_file( spath, self.user )
+            except PhreaknetOSError as e:
+                # Make this error more clear
+                raise PhreaknetOSError( "Cannot start remote session: " + e.args[0] )
             # Print the login message
             self.println( "Logged in as user " + self.user.upper() )
             # Create a new shell
