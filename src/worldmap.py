@@ -12,42 +12,50 @@ from init import *
 import shapefile
 from bitstring import BitArray
 
-worldmap_file = "dat/maps/ne_110m_land"
+worldmap_charmap = [ " ", ".", ",", "_", "'", "|", "/", "J",
+                     "`", "\\","|", "L", "\"","7", "r", "o" ]
 
 # Inherit from this to get map drawing functionality
 class Worldmap( Program ):
 
-    def __init__( self, user, work, tty, size, origin, params=[] ):
-        # Call parent
-        super( ).__init__( user, work, tty, size, origin, params )
-        ### Init mapstuff ###
-        # The shapefile to store
-        self.wm_sf = shapefile.Reader( worldmap_file )
+    def run( self ):
+        # Start the map reader
+        self.initmap( "dat/maps/ne_110m_land" )
+        # Build the map
+        self.buildmap( )
+        # Draw the map
+        self.drawmap( )
+        # Finish
+        return self.kill
+
+    def initmap( self, mapfile ):
+        # Try to load a shapefile
+        try:
+            # The shapefile to stroe
+            self.wm_sf = shapefile.Reader( mapfile )
+        except shapefile.ShapefileException:
+            # Shapefile could not be located
+            self.wm_sf = None
+            return False
+        # Make sure the shapefile is a polygon file
+        if self.wm_sf.shapeType != shapefile.POLYGON: return False
         # The bytearray to use while drawing
-        self.wm_bar = None
+        self.wm_bar = BitArray( self.size[0] * self.size[1] * 4 )
         # The transforms
         self.wm_xmin = self.wm_sf.bbox[0]
         self.wm_ymin = self.wm_sf.bbox[1]
         # The sizes
         self.wm_width  = self.wm_sf.bbox[2] - self.wm_xmin
         self.wm_height = self.wm_sf.bbox[3] - self.wm_ymin
-        # The skews
-        self.wm_xskw = 1
-        self.wm_yskw = 1
-        # The ASCII charater map
-        self.wm_cmap = [ " ", ".", ",", "_", "'", "|", "/", "J",
-                         "`", "\\","|", "L", "\"","7", "r", "o" ]
-
-    def run( self ):
-        # Configure the bytearray, 4 times the screen size
-        self.wm_bar = BitArray( self.size[0] * self.size[1] * 4 )
-        # Abort if we cannot read this file
-        if self.wm_sf.shapeType != shapefile.POLYGON:
-            self.error( "unable to read this map file type" )
-            return self.kill
         # Calculate the skews
         self.wm_xskw = self.wm_width / (self.size[0] * 2)
         self.wm_yskw = self.wm_height / (self.size[1] * 2)
+        # Return success
+        return True
+
+    def buildmap( self ):
+        # Make sure theres a file to read
+        if self.wm_sf is None: return
         # Loop through all the polygons
         for shp in self.wm_sf.shapes( ):
             # Skip non polygon shapes
@@ -63,7 +71,7 @@ class Worldmap( Program ):
                     # Finish last part
                     if fpnt is not None:
                         self.setLine( lpnt[0], lpnt[1], fpnt[0], fpnt[1] )
-                    # Set new first part
+                    # Set new first point
                     fpnt = pnt
                 else:
                     # Plot the line
@@ -72,11 +80,11 @@ class Worldmap( Program ):
                 lpnt = pnt
             # Finish last polyon
             self.setLine( lpnt[0], lpnt[1], fpnt[0], fpnt[1] )
-        # We're done here
-        return self.drawmap( )
 
     # Draw the ASCII representation of this map
     def drawmap( self ):
+        # Make sure there's something to do
+        if self.wm_sf is None: return
         # Iterate through the entire screen
         for y in range( 0, self.size[1] * 2, 2 ):
             aln = ""
@@ -87,11 +95,9 @@ class Worldmap( Program ):
                 char += self.getPix( x, y + 1 ) * 2
                 char += self.getPix( x + 1, y + 1 )
                 # Add the char to this line
-                aln += self.wm_cmap[char]
+                aln += worldmap_charmap[char]
             # Print this line
             self.println( aln )
-        # We're done here
-        return self.kill
 
     # Set a pixel
     def setPix( self, x, y ):
@@ -108,40 +114,44 @@ class Worldmap( Program ):
         # Return the bit
         return self.wm_bar[y * ( self.size[0] * 2 ) + x]
 
-    # Bresenham's line algorithm
-    # https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
+    # The line drawing algorithm
+    # https://en.wikipedia.org/wiki/Line_drawing_algorithm
     def setLine( self, xa, ya, xb, yb ):
         # Orient everything
-        xa = round( ( xa - self.wm_xmin ) / self.wm_xskw )
-        ya = round( ( ya - self.wm_ymin ) / self.wm_yskw )
-        xb = round( ( xb - self.wm_xmin ) / self.wm_xskw )
-        yb = round( ( yb - self.wm_ymin ) / self.wm_yskw )
+        xa = ( xa - self.wm_xmin ) / self.wm_xskw
+        ya = ( ya - self.wm_ymin ) / self.wm_yskw
+        xb = ( xb - self.wm_xmin ) / self.wm_xskw
+        yb = ( yb - self.wm_ymin ) / self.wm_yskw
+        # Flip flops less and greaters
+        if xb < xa:
+            tmp = xa
+            xa = xb
+            xb = tmp
+        if yb < ya:
+            tmp = ya
+            ya = yb
+            yb = tmp
         # Calculate Delta X & Y
         dx = xb - xa
         dy = yb - ya
         # This formula doesn't work with vertical lines
         if dx == 0:
-            # Draw each pixel of this line
-            for iy in range( ya, yb ):
-                # Draw the vertical line
-                self.setPix( xa, iy )
-        else:
-            # Calculate the Delta Error
-            derr = abs( dy / dx )
-            # Starting error
-            err = 0
             # Starting y
             iy = ya
-            # Iterate through x
-            for ix in range( xa, xb ):
-                # Plot this point
+            # Draw each pixel of this line
+            while iy <= yb:
+                # Draw the pixel
+                self.setPix( xa, iy )
+                # Increment y
+                iy += 1
+        else:
+            # Starting x
+            ix = xa
+            # Draw the line
+            while ix <= xb:
+                # Calculate the y coord
+                iy = yb + dy * ( ix - xb ) / dx
+                # Draw the pixel
                 self.setPix( ix, iy )
-                # Calculate new error
-                err += derr
-                while err >= 0.5:
-                    # Compensate for error
-                    if dy >= 0:
-                        iy += 1
-                    else:
-                        iy -= 1
-                    err -= 1
+                # Increment x
+                ix += 1
