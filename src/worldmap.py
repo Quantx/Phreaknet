@@ -122,12 +122,11 @@ class Worldmap( Program ):
         ya = ( ya - self.wm_ymin ) / self.wm_yskw
         xb = ( xb - self.wm_xmin ) / self.wm_xskw
         yb = ( yb - self.wm_ymin ) / self.wm_yskw
-        # Flip flops less and greaters
+        # Switch the points if one is less than the other
         if xb < xa:
             tmp = xa
             xa = xb
             xb = tmp
-        if yb < ya:
             tmp = ya
             ya = yb
             yb = tmp
