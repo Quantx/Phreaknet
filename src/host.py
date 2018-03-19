@@ -802,8 +802,10 @@ class Host:
 
     # string | nuser ... user to add to the system
     # string | user .... the user preforming this operation
+    # string | home .... the home directory for this user
+    # string | shell ... the default executable for this user
     # Returns true if successfull
-    def add_user( self, nuser, user ):
+    def add_user( self, nuser, user, home="", shell="/bin/shell" ):
         # Make sure this account doesn't already exist
         if self.check_user( nuser, user ): return False
         # Make sure this account even exists
@@ -813,8 +815,10 @@ class Host:
         elif Account.find_account( nuser ) is None:
             # Make sure this account exists
             return False
+        # Generate default homedir
+        if not home: home = "/usr/" + nuser
         # Build the new user's passwd file line
-        paswd = "%s:x:%s:%s:,,,:/usr/%s:/bin/shell\n" % (nuser, self.nuid, self.ngid, nuser)
+        paswd = "%s:x:%s:%s:,,,:%s:%s\n" % (nuser, self.nuid, self.ngid, home, shell)
         # Try to build the group file
         if not self.add_group( nuser, user ): return False
         # Create the user
