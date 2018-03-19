@@ -664,9 +664,36 @@ class Host:
         if recur: opt = 2
         return self.remove_file( path, user, opt )
 
+    # Get the home directory for a user on this system
+    def get_home( self, user ):
+        # Iterate through each user
+        for pln in self.read_lines( "/sys/passwd", "root" ):
+            # Split this line
+            pr = pln.split( ":" )
+            # Check if this is our user
+            if user == pr[0]:
+                # Return the home dir
+                return pr[5]
+        # User not found
+        return ""
+
+    # Get the shell program for a user on this system
+    def get_shell( self, user ):
+        # Iterate through each user
+        for pln in self.read_lines( "/sys/passwd", "root" ):
+            # Split this line
+            pr = pln.split( ":" )
+            # Check if this is our user
+            if user == pr[0]:
+                # Return the shell program path
+                return pr[6]
+        # User not found
+        return ""
+
     # List all users on the system or in a specific group
     # string (optional) | group ... the group to get users from
     def get_users( self, group="" ):
+        # Store a list of users
         users = []
         # Are we searching a group?
         if group:

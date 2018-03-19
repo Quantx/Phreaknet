@@ -686,12 +686,19 @@ class SSH( Program ):
         dhost = self.host.resolve( self.params[0] )
         # Check the password
         if dhost.check_pass( self.user, self.rl_line, "root" ):
+            # Fetch the shell program to run
+            spath = dhost.get_shell( self.user )
+            # Get the home directory for this user
+            hpath = dhost.get_home( self.user )
+            # Attempt to execute the shell program
+            pclass = dhost.exec_file( spath, self.user )
+            # Print the login message
             self.println( "Logged in as user " + self.user.upper() )
             # Create a new shell
-            nsh = Shell( self.user, "/usr/" + self.user, self.ssh_ntty,
+            prg = pclass( self.user, hpath, self.ssh_ntty,
                 self.size, ( self.host.ip, self.pid ) )
             # Start a shell on the remote host, and set the destination
-            self.destin = dhost.start( nsh )
+            self.destin = dhost.start( prg )
         else:
             self.error( "login failed" )
         # Don't store the password past this point
