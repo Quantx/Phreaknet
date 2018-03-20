@@ -12,6 +12,9 @@ from init import *
 # The first arg must be a string to be displayed
 class PhreaknetException( Exception ): pass
 
+# Raised when trying to hash a password that is too long
+class PhreaknetPassOverflow( PhreaknetException ): pass
+
 # An ingame Operating System error, such as "File not found"
 class PhreaknetOSError( PhreaknetException ): pass
 

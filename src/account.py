@@ -10,6 +10,7 @@ from init import *
 
 import time
 from hashlib import pbkdf2_hmac
+import random
 import os
 import pickle
 
@@ -97,5 +98,62 @@ class Account:
     def is_admin( self ):
         return self.phreakpriv > 1
 
-# Raised when trying to hash a password that is too long
-class PassOverflow( Exception ): pass
+# This is the base class for a Phreaknet NPC
+class Person:
+
+    # List of people
+    people = []
+
+    # Pick a random name from the given file
+    # FILE: male, female, last, hacker
+    @staticmethod
+    def random_name( file ):
+        # Make sure this is an actual file
+        if not os.path.isfile( "dat/names/" + file ): return ""
+        # Try to open the file
+        with open( "dat/names/" + file ) as fd:
+            # Read the file and store each line in an array
+            names = fd.read( ).splitlines( )
+            # Generate a random index of the array
+            i = random.randint( 0, len( names ) - 1 )
+            # Return that index
+            return names[i]
+
+    # Generate a social security number (SSN)
+    # This will be uniqure for every person
+    def random_ssn( ):
+        # Loop until done
+        while True:
+            # Generate a new 10 digit SSN as a string
+            ssn = "" + random.randint( 1000000000, 9999999999 )
+            # Make sure it's unique
+            for per in Person.people:
+                # We got a match, try again
+                if per.ssn == ssn: break
+            else:
+                # No match, return it
+                return ssn
+
+    def __init__( self ):
+        # Is this person male?
+        self.male = bool( random.getrandbits(1) )
+        # Generate a random first name
+        fnf = "female"
+        if self.male: fnf = "male"
+        self.first = Person.random_name( fnf )
+        # Generate a random last name
+        self.last = Person.random_name( "last" )
+        # Generate a social security nubmer
+        self.ssn = Person.random_ssn( )
+
+        # Add ourselves to the list
+        Person.people.append( self )
+
+# A hacker NPC
+class Hacker( Person ):
+
+    def __init__( self ):
+        # Call super init
+        super( ).__init__( )
+        # Generate a hacker name
+        self.alias = Person.random_name( "hacker" )
