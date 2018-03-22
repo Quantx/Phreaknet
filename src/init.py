@@ -17,6 +17,7 @@ from software import *
 from host import *
 from worldmap import *
 from hacksoft import *
+from companies import *
 from phreaknet import *
 # Networking should be last
 from networking import *
