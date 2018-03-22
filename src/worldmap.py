@@ -154,3 +154,12 @@ class Worldmap( Program ):
                 self.setPix( ix, iy )
                 # Increment x
                 ix += 1
+
+    # Get the corresponding (x, y) coords on the screen of a set lat and lon
+    def getXY( self, lon, lat ):
+        # Calculate the x-coordinate
+        x = ( lon + 180 ) / 360 * self.size[0]
+        # Calculate the y-coordinate
+        y = ( 180 - ( lat + 90 ) ) / 180 * self.size[1]
+        # Return the point
+        return ( x, y )

@@ -1012,3 +1012,15 @@ class Cat( Program ):
             self.error( "usage: cat <file>" )
         # We're done here
         return self.kill
+
+# Copy a file to another location
+class CP( Program ):
+
+    def run( self ):
+        pass
+
+# Move a file to another location
+class MV( Program ):
+
+    def run( self ):
+        pass
