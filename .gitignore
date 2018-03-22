@@ -10,3 +10,7 @@
 dir/*
 # Ignore Inode data files
 *.inode
+# Ignore saved data files for NPCs
+*.per
+# Ignore saved data files for Companies
+*.cmp

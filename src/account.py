@@ -104,6 +104,19 @@ class Person:
     # List of people
     people = []
 
+    # Load all accounts from disk
+    @staticmethod
+    def load( ):
+        # Abort unless hosts is empty
+        if Person.people: return False
+        # Get all files in the hst directory
+        pers = next( os.walk( 'per' ) )[2]
+        # Load each file
+        for per in pers:
+            if per.endswith( '.per' ):
+                with open( 'per/' + per, 'rb' ) as f:
+                    Person.people.append( pickle.load( f ) )
+
     # Pick a random name from the given file
     # FILE: male, female, last, hacker
     @staticmethod
@@ -124,8 +137,11 @@ class Person:
     def random_ssn( ):
         # Loop until done
         while True:
-            # Generate a new 10 digit SSN as a string
-            ssn = "" + random.randint( 1000000000, 9999999999 )
+            # Generate a new 9 digit SSN as a string
+            # Template: ###-##-####
+            ssn =   "" + random.randint( 100, 999 )
+            ssn += "-" + random.randint( 10, 99 )
+            ssn += "-" + random.randint( 1000, 9999 )
             # Make sure it's unique
             for per in Person.people:
                 # We got a match, try again
@@ -148,6 +164,13 @@ class Person:
 
         # Add ourselves to the list
         Person.people.append( self )
+
+# A system admin NPC
+class Admin( Person ):
+
+    def __init__( self ):
+        # Call super init
+        super( ).__init__( )
 
 # A hacker NPC
 class Hacker( Person ):
