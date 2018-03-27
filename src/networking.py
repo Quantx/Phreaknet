@@ -11,7 +11,16 @@ from init import *
 
 # Dependancies
 import socket
+import requests
+import geoip2.database
+import geoip2.errors
 from random import randint
+
+# Phreaknet Public IP Address
+pnip = requests.get( "http://ip.42.pl/raw" ).text
+
+# The reader for the geoip2 database
+ipdb = geoip2.database.Reader( "../dat/GeoLite2-City.mmdb" )
 
 # Load the login banner
 login_banner = []
@@ -89,6 +98,9 @@ class Server:
         port = 23
         if dev: port = 4200
 
+        # Correct the phreaknet public IP
+        if ip: pnip = ip
+
         # Array of clients
         self.clients = []
 
@@ -117,13 +129,15 @@ class Server:
                # Assign connection a client
                cnew = TelnetClient( self, sock )
                # Append client to array
-               self.clients.append( cnew )
                xlog( "Connected to PhreakNET", cnew )
+               self.clients.append( cnew )
             # No remaining connections, break
             except socket.timeout:
                break
 
     def __del__( self ):
+        # Close the Geoip2 reader
+        ipdb.close( )
         # Terminate all clients
         for c in self.clients:
             c.kill( )
@@ -141,6 +155,8 @@ class Client:
         self.ip = addr[0]
         # The port this user is connecting from
         self.port = addr[1]
+        # Store this user's location data, in Geoip2 form
+        self.geoip = self.getGeoip2( self.ip )
         # A reference to this user's gateway machine and shell process
         self.gateway = None
         # A reference to this user's account
@@ -176,9 +192,16 @@ class Client:
 
         # Print the login banner
         self.stdout( "\r\n*** Welcome to PhreakNET ***\r\n\n" )
-        self.stdout( "If you are reading this then we are unable to verify that you are a human.\r\n" )
-        self.stdout( "You will be automatically disconnected within 5 seconds. Please reconnect\r\n" )
-        self.stdout( "with a modern Telnet client.\r\n" )
+        # Is this user in our DB?
+        if self.geoip is None:
+            self.stdout( "If you are reading this then your IP was not listed in our DB. If you're\r\n" )
+            self.stdout( "using a proxy or VPN i'd recommend connecting directly instead.\r\n" )
+            time.sleep( 0.05 )
+            self.kill( )
+        else:
+            self.stdout( "If you are reading this then we are unable to verify that you are a human.\r\n" )
+            self.stdout( "You will be automatically disconnected within 5 seconds. Please reconnect\r\n" )
+            self.stdout( "with a modern Telnet client.\r\n" )
 
     # Override this to handle output
     def stdout( self, msg ):
@@ -230,6 +253,21 @@ class Client:
 
         # Return true since we're still connected
         return True
+
+    # Get the geoip2 data
+    def getGeoip2( self, ip ):
+        # Check if this is a local IP
+        if ( ip == "127.0.0.1" or ip.startswith( "192.168." )
+        or ip.startswith( "10." ) ):
+            # Set IP to Phreaknet's public IP
+            ip = pnip
+
+        # Try to get the Geoip2 data
+        try:
+            return ipdb.city( ip )
+        except geoip2.errors.AddressNotFoundError as e:
+            # If the IP was not recognized, disconnect this user
+            return None
 
     # Print out the login banner
     def login_banner( self, msg ):
