@@ -11,6 +11,7 @@
 from init import *
 
 import math
+import csv
 
 # Import 3rd party dependencies
 import shapefile
@@ -30,7 +31,7 @@ class Worldmap( Program ):
         # Draw the map
         self.drawmap( )
         # Draw an X on the Host
-        self.drawString( self.getXY( self.host.location ), "X" )
+        self.drawString( self.getXY( self.host.geoloc["location"] ), "X" )
         # Finish
         return self.kill
 
@@ -206,3 +207,29 @@ def getGeoDist( pta, ptb ):
 def getMiles( km ):
     # A mile is 1.6 times longer then a kilometer
     return 1.6 * km
+
+# Returns a dict containing info regarding a city
+def getCityData( name ):
+    # Read the cities data file
+    with open( "dat/worldcitiespop.txt" ) as fd:
+        # Start the CSV reader
+        csrd = csv.reader( fd )
+        # Iterate over each entry
+        for city in csrd:
+            # Check if the plaintext name matches
+            if city[1].lower( ) == name.lower( ):
+                # Build and return the dictionary
+                return {
+                     # Country code for this city
+                     "country": city[0],
+                     # Name of the city in standard ASCII
+                     "name": city[1],
+                     # Non-ASCII name of the city
+                   # "realname": city[2],
+                     # Region (state) code for this city
+                     "region": city[3],
+                     # Population (not used)
+                   # "population": city[4],
+                     # Location (latitude, longitude)
+                     "location": ( float( city[5] ), float( city[6] ) )
+                }

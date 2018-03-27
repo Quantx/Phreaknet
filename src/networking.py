@@ -128,8 +128,9 @@ class Server:
                sock[0].setblocking( 0 )
                # Assign connection a client
                cnew = TelnetClient( self, sock )
+               # Need to manually print this since its outside the client loop
+               sys.stdout.write( ansi_clear_line( ) + time.strftime( "[%m/%d/%Y|%H:%M:%S]" ) + "Connected to PhreakNET\r\n" )
                # Append client to array
-               xlog( "Connected to PhreakNET", cnew )
                self.clients.append( cnew )
             # No remaining connections, break
             except socket.timeout:
@@ -156,7 +157,7 @@ class Client:
         # The port this user is connecting from
         self.port = addr[1]
         # Store this user's location data, in Geoip2 form
-        self.geoip = self.getGeoip2( self.ip )
+        self.geoloc = self.getGeoip2( self.ip )
         # A reference to this user's gateway machine and shell process
         self.gateway = None
         # A reference to this user's account
@@ -193,7 +194,7 @@ class Client:
         # Print the login banner
         self.stdout( "\r\n*** Welcome to PhreakNET ***\r\n\n" )
         # Is this user in our DB?
-        if self.geoip is None:
+        if self.geoloc is None:
             self.stdout( "If you are reading this then your IP was not listed in our DB. If you're\r\n" )
             self.stdout( "using a proxy or VPN i'd recommend connecting directly instead.\r\n" )
             time.sleep( 0.05 )
@@ -376,7 +377,7 @@ class Client:
                                 # Assign the account to the client
                                 self.account = acct
                                 # Log the event
-                                xlog( "Logged in successfully", self )
+                                xlog( "Logged in successfully" )
                                 # Resolve this account's gateway IP
                                 gatehost = Host.find_ip( self.account.gateway )
                                 # Does this account own a gateway
@@ -440,7 +441,7 @@ class Client:
                     # Create account and reset login data
                     self.account = Account( self.ac_user, self.ac_pass )
                     # Log the event
-                    xlog( "Registered successfully", self )
+                    xlog( "Registered successfully" )
                     # This user cant have a gateway so ask him to make one
                     self.print_banner( legal_banner, legal_pos )
             else:
@@ -462,14 +463,13 @@ class Client:
             # Wait for enter to get pressed
             if data.find( "\r" ) >= 0:
                 # Make a new gateway
-                nhst = Host( "Gateway_" + str( randint( 100000, 999999 ) ), (
-                self.geoip.location.latitude, self.geoip.location.longitude ) )
+                nhst = Host( "Gateway_" + str( randint( 100000, 999999 ) ), "palo alto" )
                 # Add our account to this gateway
                 nhst.add_user( self.account, "root" )
                 # Give this account root access
                 nhst.join_group( self.account.username, "sudo", "root" )
                 # Log the creation
-                xlog( "Requested a new gateway: " + nhst.hostname + "@" + nhst.ip, self )
+                xlog( "Requested a new gateway: " + nhst.hostname + "@" + nhst.ip )
                 # Copy the IP address
                 self.account.gateway = nhst.ip
                 # Print the system boot banner
@@ -562,7 +562,7 @@ class Client:
         # Can't die twice
         if not self.alive: return False
         # Print exit banner
-        xlog( "Disconnected from PhreakNET", self )
+        xlog( "Disconnected from PhreakNET" )
         self.stdout( ansi_move( self.size[1], 1 ) + "\r\n" )
         self.stdout( "*** Connection to PhreakNET terminated ***\r\n" )
         # Flag client for deletion

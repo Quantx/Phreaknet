@@ -10,12 +10,17 @@
 ###    IMPORT INIT IN ALL FILES    ###
 #####                            #####
 
+global cur_client;
+cur_client = None
+global cur_host;
+cur_host = None
+
 from formating import *
 from exceptions import *
 from account import *
 from software import *
-from host import *
 from worldmap import *
+from host import *
 from hacksoft import *
 from companies import *
 from phreaknet import *

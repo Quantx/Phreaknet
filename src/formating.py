@@ -14,12 +14,12 @@ import sys
 import time
 
 # Log a server action
-def xlog( msg, cli=None, hst=None ):
+def xlog( msg ):
     # Date/Time (24 hour) format: [MM/DD/YYYY|HH:MM:SS]
     out = time.strftime( "[%m/%d/%Y|%H:%M:%S]" )
 
     # Was a Client object specified?
-    if cli is not None:
+    if cur_client is not None:
         # Assume this user isn't logged in
         username = "Guest"
         # Find this user's associated account
@@ -28,7 +28,7 @@ def xlog( msg, cli=None, hst=None ):
         # Append to output
         out += "[" + cli.ip + ":" + str( cli.port ) + "|" + username + "]"
     # Was a host specified?
-    if hst is not None:
+    if cur_host is not None:
        # Add the hostname
        out += "[" + hst.hostname
        # Add the IP
