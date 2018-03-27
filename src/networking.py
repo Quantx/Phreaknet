@@ -462,7 +462,8 @@ class Client:
             # Wait for enter to get pressed
             if data.find( "\r" ) >= 0:
                 # Make a new gateway
-                nhst = Host( "Gateway_" + str( randint( 100000, 999999 ) ) )
+                nhst = Host( "Gateway_" + str( randint( 100000, 999999 ) ), (
+                self.geoip.location.latitude, self.geoip.location.longitude ) )
                 # Add our account to this gateway
                 nhst.add_user( self.account, "root" )
                 # Give this account root access

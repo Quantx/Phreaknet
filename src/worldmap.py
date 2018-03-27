@@ -29,6 +29,8 @@ class Worldmap( Program ):
         self.buildmap( )
         # Draw the map
         self.drawmap( )
+        # Draw an X on the Host
+        self.drawString( self.getXY( self.host.location ), "X" )
         # Finish
         return self.kill
 
@@ -103,6 +105,13 @@ class Worldmap( Program ):
             # Print this line
             self.println( aln )
 
+    # Top left cell is (0, 0)
+    # Draw a string on the screen at position
+    def drawString( self, pts, str ):
+        # Move cursor to position and print text
+        self.printl( ansi_move( pts[1], pts[0] ) + str )
+
+
     # Set a pixel
     def setPix( self, pts ):
         # Normalize
@@ -163,30 +172,37 @@ class Worldmap( Program ):
     # pts = ( latitude, longitude )
     def getXY( self, pts ):
         # Calculate the x-coordinate
-        x = ( pts[0] + 180 ) / 360 * self.size[0]
+        x = ( pts[1] + 180 ) / 360 * self.size[0]
         # Calculate the y-coordinate
-        y = ( 180 - ( pts[1] + 90 ) ) / 180 * self.size[1]
-        # Return the point
-        return ( x, y )
+        y = ( 180 - ( pts[0] + 90 ) ) / 180 * self.size[1]
+        # Return the rounded xy coords
+        return ( round(x), round(y) )
 
-    # Get the distance between two ( latitude, longitudes ) in kilometers
-    def getDist( self, pta, ptb ):
-        # Python uses radians, not degrees for sin and cos
-        lata = math.radians( pta[0] )
-        lona = math.radians( pta[1] )
-        latb = math.radians( ptb[0] )
-        lonb = math.radians( ptb[1] )
-        # Get the delta lat and lon
-        dlat = latb - lata
-        dlon = lonb - lona
-        # First part
-        tmp = math.sin(dlat / 2)**2 + math.cos(lata)
-        # Second part
-        tmp *= math.cos(latb) * math.sin(dlon / 2)**2
-        # 12746 is the diameter of the earth in kilometers
-        return 12746 * math.atan2(math.sqrt(tmp), math.sqrt(1 - tmp))
+    # Clean up the screen
+    def kill( self ):
+        # Reset cursor on death
+        self.printl( ansi_move( self.size[1], 0 ) )
+        # Call our parent function
+        super( ).kill( )
 
-    # Convert kilometers to miles
-    def getMiles( self, km ):
-         # A mile is 1.6 times longer then a kilometer
-         return 1.6 * km
+# Get the distance between two ( latitude, longitudes ) in kilometers
+def getGeoDist( pta, ptb ):
+    # Python uses radians, not degrees for sin and cos
+    lata = math.radians( pta[0] )
+    lona = math.radians( pta[1] )
+    latb = math.radians( ptb[0] )
+    lonb = math.radians( ptb[1] )
+    # Get the delta lat and lon
+    dlat = latb - lata
+    dlon = lonb - lona
+    # First part
+    tmp = math.sin(dlat / 2)**2 + math.cos(lata)
+    # Second part
+    tmp *= math.cos(latb) * math.sin(dlon / 2)**2
+    # 12746 is the diameter of the earth in kilometers
+    return 12746 * math.atan2(math.sqrt(tmp), math.sqrt(1 - tmp))
+
+# Convert kilometers to miles
+def getMiles( km ):
+    # A mile is 1.6 times longer then a kilometer
+    return 1.6 * km

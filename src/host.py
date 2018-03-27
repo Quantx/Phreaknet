@@ -81,13 +81,15 @@ class Host:
                     Account.accounts.append( pickle.load( f ) )
         return True
 
-    def __init__( self, name ):
+    def __init__( self, name, locat ):
         # The unique ID of this host
         self.hostid = str( uuid.uuid4( ) )
 
         ### Host info ###
         # Name of the host
         self.hostname = name
+        # The physical location of the host (latitude, longitude)
+        self.location = locat
         # IP Address of the host, "" = no network
         self.ip = Host.new_ip( )
         # Phone number of the host, "" = no landline

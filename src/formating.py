@@ -62,7 +62,8 @@ def time_ls( tm ):
 
 # Move the cursor to a postion on the screen
 # Can either be a set of coords or a tuple
-# (0, 0) is the top left cell
+# (1, 1) is the top left cell
+# FORMAT: ( ROW, COL )
 def ansi_move( *args ):
     # Check if one or two args are given
     if len( args ) == 1:
