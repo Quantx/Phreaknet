@@ -6,7 +6,11 @@
 # General purpose system programs  #
 ####################################
 
+# NOTE: All latitude and longitudes are in DEGREES
+
 from init import *
+
+import math
 
 # Import 3rd party dependencies
 import shapefile
@@ -70,16 +74,16 @@ class Worldmap( Program ):
                 if i in shp.parts:
                     # Finish last part
                     if fpnt is not None:
-                        self.setLine( lpnt[0], lpnt[1], fpnt[0], fpnt[1] )
+                        self.setLine( lpnt, fpnt )
                     # Set new first point
                     fpnt = pnt
                 else:
                     # Plot the line
-                    self.setLine( lpnt[0], lpnt[1], pnt[0], pnt[1] )
+                    self.setLine( lpnt, pnt )
                 # Set new last point
                 lpnt = pnt
             # Finish last polyon
-            self.setLine( lpnt[0], lpnt[1], fpnt[0], fpnt[1] )
+            self.setLine( lpnt, fpnt )
 
     # Draw the ASCII representation of this map
     def drawmap( self ):
@@ -100,10 +104,10 @@ class Worldmap( Program ):
             self.println( aln )
 
     # Set a pixel
-    def setPix( self, x, y ):
+    def setPix( self, pts ):
         # Normalize
-        x = round( x )
-        y = round( ( self.size[1] * 2 ) - y )
+        x = round( pts[0] )
+        y = round( ( self.size[1] * 2 ) - pts[1] )
         # Make sure this is in bounds
         if x > 0 and x < self.size[0] * 2 and y > 0 and y < self.size[1] * 2:
             # Flip the bit
@@ -116,12 +120,12 @@ class Worldmap( Program ):
 
     # The line drawing algorithm
     # https://en.wikipedia.org/wiki/Line_drawing_algorithm
-    def setLine( self, xa, ya, xb, yb ):
+    def setLine( self, pta, ptb ):
         # Orient everything
-        xa = ( xa - self.wm_xmin ) / self.wm_xskw
-        ya = ( ya - self.wm_ymin ) / self.wm_yskw
-        xb = ( xb - self.wm_xmin ) / self.wm_xskw
-        yb = ( yb - self.wm_ymin ) / self.wm_yskw
+        xa = ( pta[0] - self.wm_xmin ) / self.wm_xskw
+        ya = ( pta[1] - self.wm_ymin ) / self.wm_yskw
+        xb = ( ptb[0] - self.wm_xmin ) / self.wm_xskw
+        yb = ( ptb[1] - self.wm_ymin ) / self.wm_yskw
         # Switch the points if one is less than the other
         if xb < xa:
             tmp = xa
@@ -140,7 +144,7 @@ class Worldmap( Program ):
             # Draw each pixel of this line
             while iy <= yb:
                 # Draw the pixel
-                self.setPix( xa, iy )
+                self.setPix( ( xa, iy ) )
                 # Increment y
                 iy += 1
         else:
@@ -151,15 +155,38 @@ class Worldmap( Program ):
                 # Calculate the y coord
                 iy = yb + dy * ( ix - xb ) / dx
                 # Draw the pixel
-                self.setPix( ix, iy )
+                self.setPix( ( ix, iy ) )
                 # Increment x
                 ix += 1
 
     # Get the corresponding (x, y) coords on the screen of a set lat and lon
-    def getXY( self, lon, lat ):
+    # pts = ( latitude, longitude )
+    def getXY( self, pts ):
         # Calculate the x-coordinate
-        x = ( lon + 180 ) / 360 * self.size[0]
+        x = ( pts[0] + 180 ) / 360 * self.size[0]
         # Calculate the y-coordinate
-        y = ( 180 - ( lat + 90 ) ) / 180 * self.size[1]
+        y = ( 180 - ( pts[1] + 90 ) ) / 180 * self.size[1]
         # Return the point
         return ( x, y )
+
+    # Get the distance between two ( latitude, longitudes ) in kilometers
+    def getDist( self, pta, ptb ):
+        # Python uses radians, not degrees for sin and cos
+        lata = math.radians( pta[0] )
+        lona = math.radians( pta[1] )
+        latb = math.radians( ptb[0] )
+        lonb = math.radians( ptb[1] )
+        # Get the delta lat and lon
+        dlat = latb - lata
+        dlon = lonb - lona
+        # First part
+        tmp = math.sin(dlat / 2)**2 + math.cos(lata)
+        # Second part
+        tmp *= math.cos(latb) * math.sin(dlon / 2)**2
+        # 12746 is the diameter of the earth in kilometers
+        return 12746 * math.atan2(math.sqrt(tmp), math.sqrt(1 - tmp))
+
+    # Convert kilometers to miles
+    def getMiles( self, km ):
+         # A mile is 1.6 times longer then a kilometer
+         return 1.6 * km
