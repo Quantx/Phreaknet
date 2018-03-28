@@ -89,7 +89,7 @@ class Host:
         # Name of the host
         self.hostname = name
         # The physical location of the host
-        self.geoloc = (0,0) # getCityData( cityname )
+        self.geoloc = {} # getCityName( cityname )
         # IP Address of the host, "" = no network
         self.ip = Host.new_ip( )
         # Phone number of the host, "" = no landline

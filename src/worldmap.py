@@ -11,6 +11,7 @@
 from init import *
 
 import math
+import random
 import csv
 
 # Import 3rd party dependencies
@@ -208,28 +209,65 @@ def getMiles( km ):
     # A mile is 1.6 times longer then a kilometer
     return 1.6 * km
 
+# Get the dict from a row in longer list
+def getCity( city ):
+    # Build and return the dictionary
+    return {
+        # Country code for this city
+        "country": city[0],
+        # Name of the city in standard ASCII
+        "name": city[1],
+        # Non-ASCII name of the city (we can't print this so its not used)
+#       "realname": city[2],
+        # Region (state) code for this city
+        "region": city[3],
+        # Population
+        "population": city[4],
+        # Location (latitude, longitude)
+        "location": ( float( city[5] ), float( city[6] ) )
+    }
+
 # Returns a dict containing info regarding a city
-def getCityData( name ):
+# string  | name ........... the exact name of the city to search for
+# boolean | includeMinor ... whether to include cities without population sizes
+def getCityName( name, includeMinor=False ):
     # Read the cities data file
     with open( "dat/worldcitiespop.txt" ) as fd:
-        # Start the CSV reader
-        csrd = csv.reader( fd )
         # Iterate over each entry
-        for city in csrd:
+        for fline in fd:
+            # Split the data on commas
+            city = fline.strip( ).split( "," )
             # Check if the plaintext name matches
-            if city[1].lower( ) == name.lower( ):
+            if city[1].lower( ) == name.lower( ) and ( city[4] or includeMinor ):
                 # Build and return the dictionary
-                return {
-                     # Country code for this city
-                     "country": city[0],
-                     # Name of the city in standard ASCII
-                     "name": city[1],
-                     # Non-ASCII name of the city
-                   # "realname": city[2],
-                     # Region (state) code for this city
-                     "region": city[3],
-                     # Population (not used)
-                   # "population": city[4],
-                     # Location (latitude, longitude)
-                     "location": ( float( city[5] ), float( city[6] ) )
-                }
+                return getCity( city )
+        # City not found
+        return None
+
+# Get a random city with a population greater than size
+# Major City: size=3 :          population > 15,000
+# Avg.  City: size=2 : 15,000 > population >  5,000
+# Small City: size=1 :  5,000 > population >  1,000
+#       Town: size=0 :  1,000 > population
+def getCityRandom( size=0 ):
+    # Make sure a correct size was given
+    if size < 0 or size > 3: raise IndexError( "invalid city size" )
+    # List of population sizes
+    psize = [ 0, 1000, 5000, 15000, 999999999 ]
+    # Store all the valid cities
+    clist = []
+    # Read the cities data file
+    with open( "dat/worldcitiespop.txt" ) as fd:
+        # Iterate through each city
+        for fline in fd:
+            # Split on commas
+            city = fline.strip( ).split( "," )
+            # Check if this city has enough people
+            if ( city[4] and float( city[4] ) > psize[size]
+            and float( city[4] ) < psize[size + 1] ):
+                # Add this city to the list
+                clist.append( getCity( city ) )
+    # Get a random element
+    i = random.randint( 0, len( clist ) - 1 )
+    # Return that element
+    return clist[i]
