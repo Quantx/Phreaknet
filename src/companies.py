@@ -49,3 +49,11 @@ class College( Company ):
 # A security orginization like the FIB, NSA, etc.
 class Security( Company ):
     pass
+
+# A internet service provider company
+class ISP( Company ):
+    pass
+
+# A special company for PhreakNET in-game corporation
+class PhreaknetOrg( Company ):
+    pass
