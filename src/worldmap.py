@@ -240,7 +240,7 @@ def getMiles( km ):
     # A mile is 1.6 times longer then a kilometer
     return 1.6 * km
 
-# Resolve a country code
+# Resolve an ISO country code
 def resolveCountry( code ):
     # lower cased capitalized country string
     cstr = country_codes.get( code.upper( ), "unknown" ).lower( )
@@ -255,6 +255,8 @@ def getCity( city ):
     # Build and return the dictionary
     return {
         # Country code for this city
+        "iso": city[0],
+        # The name of this city's country
         "country": resolveCountry( city[0] ),
         # Name of the city in standard ASCII
         "name": city[1],
@@ -275,7 +277,7 @@ def getCity( city ):
 # boolean | includeMinor ... whether to include cities without population sizes
 def getCityName( country, region, cname, includeMinor=False ):
     # Read the cities data file
-    with open( "dat/worldcitiespop.txt" ) as fd:
+    with open( "dat/worldcitiespop.txt", "r", encoding="iso-8859-1" ) as fd:
         # Iterate over each entry
         for fline in fd:
             # Split the data on commas
@@ -293,9 +295,10 @@ def getCityName( country, region, cname, includeMinor=False ):
 # Avg.  City: size=2 : 15,000 > population >  5,000
 # Small City: size=1 :  5,000 > population >  1,000
 #       Town: size=0 :  1,000 > population
+#   Any city: size=0 : 99,999 > population > 0
 def getCityRandom( size=0 ):
     # Make sure a correct size was given
-    if size < 0 or size > 3: raise IndexError( "invalid city size" )
+    if size < -1 or size > 3: raise IndexError( "invalid city size" )
     # List of population sizes
     psize = [ 0, 1000, 5000, 15000, 999999999 ]
     # Store all the valid cities
@@ -306,8 +309,11 @@ def getCityRandom( size=0 ):
         for fline in fd:
             # Split on commas
             city = fline.strip( ).split( "," )
+            # Check if size is irrelivent
+            if size < 0 and city[4]:
+                clist.append( getCity( city ) )
             # Check if this city has enough people
-            if ( city[4] and float( city[4] ) > psize[size]
+            elif ( city[4] and float( city[4] ) > psize[size]
             and float( city[4] ) < psize[size + 1] ):
                 # Add this city to the list
                 clist.append( getCity( city ) )
