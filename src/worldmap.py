@@ -278,6 +278,8 @@ def getCity( city ):
 def getCityName( country, region, cname, includeMinor=False ):
     # Read the cities data file
     with open( "dat/worldcitiespop.txt" ) as fd:
+        # Skip the header
+        next( fd )
         # Iterate over each entry
         for fline in fd:
             # Split the data on commas
@@ -305,6 +307,8 @@ def getCityRandom( size=0 ):
     clist = []
     # Read the cities data file
     with open( "dat/worldcitiespop.txt" ) as fd:
+        # Skip the header
+        next( fd )
         # Iterate through each city
         for fline in fd:
             # Split on commas
