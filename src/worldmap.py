@@ -277,7 +277,7 @@ def getCity( city ):
 # boolean | includeMinor ... whether to include cities without population sizes
 def getCityName( country, region, cname, includeMinor=False ):
     # Read the cities data file
-    with open( "dat/worldcitiespop.txt", "r", encoding="iso-8859-1" ) as fd:
+    with open( "dat/worldcitiespop.txt" ) as fd:
         # Iterate over each entry
         for fline in fd:
             # Split the data on commas
