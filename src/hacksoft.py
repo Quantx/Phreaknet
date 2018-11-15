@@ -31,7 +31,7 @@ class Porthack( Program ):
         self.println( "  ///////////////////////////////////////" )
         self.println( )
         # Prompt the user with Y/N
-        return self.readchar( self.pickhost, "Continue? (y/n) ", ["y", "n"]  )
+        return self.readchar( self.pickhost, "Continue? (y/n) ", ["y", "n"] )
 
     # Pick a host to hack
     def pickhost( self ):

@@ -157,7 +157,7 @@ class Client:
         # The port this user is connecting from
         self.port = addr[1]
         # Store this user's location data, in Geoip2 form
-        self.geoloc = self.getGeoip2( self.ip )
+        self.geoloc = getGeoip2( self.ip )
         # A reference to this user's gateway machine and shell process
         self.gateway = None
         # A reference to this user's account
@@ -255,20 +255,10 @@ class Client:
         # Return true since we're still connected
         return True
 
-    # Get the geoip2 data
-    def getGeoip2( self, ip ):
-        # Check if this is a local IP
-        if ( ip == "127.0.0.1" or ip.startswith( "192.168." )
-        or ip.startswith( "10." ) ):
-            # Set IP to Phreaknet's public IP
-            ip = pnip
-
-        # Try to get the Geoip2 data
-        try:
-            return ipdb.city( ip )
-        except geoip2.errors.AddressNotFoundError as e:
-            # If the IP was not recognized, disconnect this user
-            return None
+    # Get the (latitude, longitude) of this user
+    def get_location( self ):
+        # Get the latitude and longitude
+        return ( self.geoloc.latitude, self.geoloc.longitude )
 
     # Print out the login banner
     def login_banner( self, msg ):
@@ -655,3 +645,18 @@ class SSHClient( Client ):
 
      def __init__( self ):
          pass
+
+# Get the geoip2 data
+def getGeoip2( ip ):
+    # Check if this is a local IP
+    if ( ip == "127.0.0.1" or ip.startswith( "192.168." )
+    or ip.startswith( "10." ) ):
+        # Set IP to Phreaknet's public IP
+        ip = pnip
+
+    # Try to get the Geoip2 data
+    try:
+        return ipdb.city( ip )
+    except geoip2.errors.AddressNotFoundError as e:
+        # If the IP was not recognized, disconnect this user
+        return None

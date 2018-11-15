@@ -12,23 +12,29 @@ from init import *
 import sys
 import os
 
+# The directories needed by phreaknet
+phreakdirs = [ "usr", "hst", "dir", "err", "per", "cmp" ]
+
 def main( ):
     # Set the working directory
     os.chdir( ".." )
 
-    # Create the user directory if it doesn't exist
-    if not os.path.exists( "usr" ): os.makedirs( "usr" )
+    # Create all the dirs PhreakNET needs
+    for pdir in phreakdirs:
+        # Check if the directory doesn't exist
+        if not os.path.isdir( pdir ):
+            # Make this directory
+            os.makedirs( pdir )
+
     # Load all accounts from disk
     Account.load( )
+    # Load all NPCs from disk
+    Person.load( )
+    # Load all Companies from disk
+    Company.load( )
 
-    # Create the host directory if it doesn't exist
-    if not os.path.exists( "hst" ): os.makedirs( "hst" )
-
-    # Create the hostdir directory if it doesn't exist
-    if not os.path.exists( "dir" ): os.makedirs( "dir" )
-
-    # Create the err directory for storing error reports
-    if not os.path.exists( "err" ): os.makedirs( "err" )
+    # Generate all the companies
+    Company.generate_companies( )
 
     # Build the program table
     Program.build_progtbl( )
@@ -75,7 +81,7 @@ def main( ):
             # An exception has occured
             except Exception as e:
                 # Print it
-                traceback.print_exec( )
+                traceback.print_exc( )
                 # Kill this client
                 cur_client.kill( )
         # Reset for next loop

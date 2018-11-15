@@ -55,6 +55,7 @@ with open( sys.argv[1] ) as ifd:
             # Write the city to the output file
             ofd.write( ",".join( city ) + "\n" )
 
+# Print output stats
 print( "Finished, stats:" )
 print( "Processed %s cities" % total )
 print( "Truncated %s cities" % trunc )

@@ -548,7 +548,7 @@ class Shell( Program ):
                     puser = "root"
                 # Command is an external program
                 prg = pclass( puser, self.cwd, self.tty, self.size,
-                            ("127.0.0.1", self.pid), self.sh_args )
+                            ("0.0.0", self.pid), self.sh_args )
                 # Start the new program and set the destination
                 self.destin = self.host.start( prg )
             else:
@@ -580,16 +580,16 @@ class Shell( Program ):
             sol = self.respath( self.sh_args[0] )
 
             # Is this path a file?
-            if os.path.isfile( "dir/" + self.host.hostid + sol ):
+            if os.path.isfile( "dir/" + self.host.uid + sol ):
                 self.error( "Not a directory" )
             # Is this path a directory?
-            elif os.path.isdir( "dir/" + self.host.hostid + sol ):
+            elif os.path.isdir( "dir/" + self.host.uid + sol ):
                 try:
                     # Are we root for this command?
                     puser = self.user
                     if self.sh_sudo: puser = "root"
                     # Do we have read privs for this directory?
-                    if self.host.path_priv( "dir/" + self.host.hostid + sol, puser, 2 ):
+                    if self.host.path_priv( "dir/" + self.host.uid + sol, puser, 2 ):
                         # Set our new directory
                         self.cwd = sol
                     else:
@@ -629,7 +629,7 @@ class Shell( Program ):
             if self.sh_sudo: puser = "root"
             # Instantiate program
             prg = pclass( puser, self.cwd, self.tty, self.size,
-                        ("127.0.0.1", self.pid), self.sh_args )
+                        ("0.0.0", self.pid), self.sh_args )
             # Run program
             self.destin = self.host.start( prg )
         except PhreaknetOSError as e:
@@ -806,7 +806,7 @@ class Hostname( Program ):
             acct = Account.find_account( self.user )
             # Make sure account exists and account is Admin
             if acct is not None and acct.is_admin( ):
-                self.println( self.host.hostid )
+                self.println( self.host.uid )
 
          # Terminate ourselves
         return self.kill

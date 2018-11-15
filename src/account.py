@@ -104,6 +104,16 @@ class Person:
     # List of people
     people = []
 
+    # Generate all the NPCs used in Phreaknet
+    @classmethod
+    def generate_people( cls, size ):
+        # Abort if people already generated
+        if Person.people: return False
+        # Generate grandparents (age 60+)
+        for _ in range( size ):
+            # Generate a new person
+            pass
+
     # Load all accounts from disk
     @staticmethod
     def load( ):
@@ -159,7 +169,9 @@ class Person:
         self.first = Person.random_name( fnf )
         # Generate a random last name
         self.last = Person.random_name( "last" )
-        # Generate a social security nubmer
+        # Generate a username from the lastname and some numbers
+        self.username = self.first[0] + self.last + str( random.randint( 1000, 9999 ) )
+        # Generate a unique social security nubmer
         self.ssn = Person.random_ssn( )
 
         # Add ourselves to the list
@@ -179,4 +191,4 @@ class Hacker( Person ):
         # Call super init
         super( ).__init__( )
         # Generate a hacker name
-        self.alias = Person.random_name( "hacker" )
+        self.username = Person.random_name( "hacker" )

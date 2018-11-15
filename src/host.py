@@ -36,36 +36,32 @@ host_progs = [
     "delgroup"
 ]
 
+# Direct Connect Address (DCA) Explained:
+# Example Address: 12345.12345.12345
+# Example in hex:  FFFF.FFFF.FFFF
+# Each partition can contain the values
+# from 0 to 65535 (0xFFFF)
+# NOTE: 0.0.0 is the loopback address (127.0.0.1)
+# Address partitions:
+# [ISP  ].[Route].[Hosts]
+# [12345].[12345].[12345]
+
 class Host:
 
     hosts = []
 
-    # Return a host with an IP address
+    # Return a host by its ID
     @staticmethod
-    def find_ip( ip ):
-        # Handle some exceptions
-        if not ip or ip == "localhost" or ip == "127.0.0.1": return None
-        # Crosscheck against all hosts
+    def find_id( hid ):
+        # Make sure we got a valid uuid
+        if hid and len( hid ) != 36: return None
+        # Iterate through id
         for h in Host.hosts:
-            if h.ip == ip:
-                return h
-        # No host matches
+            # Is this the correct host
+            if h.uid == hid:
+                return hid
+        # No host matches this ID
         return None
-
-    # Request a new IP address
-    # Change this when we implement ISPs
-    @staticmethod
-    def new_ip( ):
-        # Loop until we get an unused IP
-        while True:
-            # Generate a random IPv4 compatible IP
-            ip = ".".join(str(random.randint(1, 254)) for _ in range(4))
-            # Make sure the IP is unused
-            for h in Host.hosts:
-                if h.ip == ip:
-                    break
-            else:
-                return ip
 
     # Load all hosts from disk
     @staticmethod
@@ -81,17 +77,46 @@ class Host:
                     Account.accounts.append( pickle.load( f ) )
         return True
 
-    def __init__( self, name, cityname ):
+    # Check if a dca address is valid
+    @staticmethod
+    def validate_dca( dca ):
+        # Split the dca into partitions
+        dca = dca.split( "." )
+        # Check to make sure there are only 3 partitions
+        if len( dca ) != 3: return False
+        # Check each partition is valid
+        try:
+            for par in dca:
+                # Get the value of the partition
+                val = float( par )
+                # Check that the value is valid
+                if val < 0 or val >= 65535: return False
+        except ValueError as e:
+            return False
+        # It's valid
+        return True
+
+    # string  | name ....... The hostname of this host
+    # dict    | citydata ... The city data dict for this host
+    # string  | defgate .... The ISP of this host (ignored if isisp is true)
+    def __init__( self, name, citydata, defgate=None ):
         # The unique ID of this host
-        self.hostid = str( uuid.uuid4( ) )
+        self.uid = str( uuid.uuid4( ) )
 
         ### Host info ###
         # Name of the host
         self.hostname = name
         # The physical location of the host
-        self.geoloc = {} # getCityName( cityname )
-        # IP Address of the host, "" = no network
-        self.ip = Host.new_ip( )
+        self.geoloc = citydata
+        # Default gateway for this host (The host ID of this host's Router)
+        # An empty string indicates no network connection
+        self.dca = ""
+        # Contact the default gateway and request a DCA
+        dhost = Host.find_id( defgate )
+        if dhost:
+            tdca = dhost.request_dca( self.uid )
+            # Check if dca exists
+            if tdca: self.dca = tdca
         # Phone number of the host, "" = no landline
         self.phone = ""
         # Is this booted and running?
@@ -108,33 +133,33 @@ class Host:
 
         ### File System ###
         # Build the root directory
-        os.makedirs( "dir/" + self.hostid )
+        os.makedirs( "dir/" + self.uid )
         # Build the SYS directory
-        os.makedirs( "dir/" + self.hostid + "/sys" )
+        os.makedirs( "dir/" + self.uid + "/sys" )
         # Build the BIN directory
-        os.makedirs( "dir/" + self.hostid + "/bin" )
+        os.makedirs( "dir/" + self.uid + "/bin" )
         # Build the LOG directory
-        os.makedirs( "dir/" + self.hostid + "/log" )
+        os.makedirs( "dir/" + self.uid + "/log" )
         # Build the USR directory
-        os.makedirs( "dir/" + self.hostid + "/usr" )
+        os.makedirs( "dir/" + self.uid + "/usr" )
 
         # Build the .inode files                           owner, group, other = perms    owner group
-        with open( "dir/." + self.hostid + ".inode",     "w" ) as fd: fd.write( "r-xr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/.sys.inode", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/.bin.inode", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
-        with open( "dir/" + self.hostid + "/.log.inode", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
-        with open( "dir/" + self.hostid + "/.usr.inode", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
+        with open( "dir/." + self.uid + ".inode",     "w" ) as fd: fd.write( "r-xr-xr-x root root" )
+        with open( "dir/" + self.uid + "/.sys.inode", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
+        with open( "dir/" + self.uid + "/.bin.inode", "w" ) as fd: fd.write( "rwxr-xr-x root root" )
+        with open( "dir/" + self.uid + "/.log.inode", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
+        with open( "dir/" + self.uid + "/.usr.inode", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
 
         # Build the passwd file
-        with open( "dir/" + self.hostid + "/sys/passwd", "w" ) as fd: fd.write( "root:x:0:0:root:,,,:/usr/root:/bin/shell\n" )
-        with open( "dir/" + self.hostid + "/sys/.passwd.inode", "w" ) as fd: fd.write( "rw-r--r-- root root" )
+        with open( "dir/" + self.uid + "/sys/passwd", "w" ) as fd: fd.write( "root:x:0:0:root:,,,:/usr/root:/bin/shell\n" )
+        with open( "dir/" + self.uid + "/sys/.passwd.inode", "w" ) as fd: fd.write( "rw-r--r-- root root" )
         # Build the group file
-        with open( "dir/" + self.hostid + "/sys/group", "w" ) as fd: fd.write( "root:x:0:\nsudo:x:1:\n" )
-        with open( "dir/" + self.hostid + "/sys/.group.inode", "w" ) as fd: fd.write( "rw-r--r-- root root" )
+        with open( "dir/" + self.uid + "/sys/group", "w" ) as fd: fd.write( "root:x:0:\nsudo:x:1:\n" )
+        with open( "dir/" + self.uid + "/sys/.group.inode", "w" ) as fd: fd.write( "rw-r--r-- root root" )
 
         # Build the user directory for the root account
-        os.makedirs( "dir/" + self.hostid + "/usr/root" )
-        with open( "dir/" + self.hostid + "/usr/.root.inode", "w" ) as fd: fd.write( "rwx------ root root" )
+        os.makedirs( "dir/" + self.uid + "/usr/root" )
+        with open( "dir/" + self.uid + "/usr/.root.inode", "w" ) as fd: fd.write( "rwx------ root root" )
 
         # Import all the base progs into /bin
         self.import_progs( host_progs, "/bin" )
@@ -165,6 +190,11 @@ class Host:
     def save( self ):
         with open( 'hst/%s.hst' + self.hostname, 'wb+' ) as f:
             pickle.dump( self, f )
+
+    # Get the (latitude, longitude) of this host
+    def get_location( self ):
+        # Get the latitude and longitude
+        return self.geoloc["location"]
 
     # Import programs to a directory
     # list (strings) | progs ... a list of program names
@@ -201,7 +231,7 @@ class Host:
 
     # Relay output to the respective PID
     def stdout( self, target, data, forward=False ):
-        # Resolve the destination host from the IP
+        # Resolve the destination host from the DCA
         dhost = self.resolve( target[0] )
         if dhost is not None:
             # Transmit the data
@@ -264,7 +294,7 @@ class Host:
             # ptbl is full cant start
             return None
 
-        # Pass this host's IP and the new PID
+        # Pass this host and the new PID
         proc.host = self
         proc.pid = self.npid
 
@@ -276,16 +306,26 @@ class Host:
         # Append program to our ptbl
         self.ptbl.append( proc )
         # Program started, return the tuple
-        return ( self.ip, proc.pid )
+        return ( self.defgate, proc.pid )
 
     # Processes and Programs should use this as much as possible
-    def resolve( self, ip ):
-        # Is this a local IP?
-        if ip == "localhost" or ip == "127.0.0.1": return self
+    def resolve( self, dca ):
+        # Can't do anything if we're offline
+        if not self.online: return None
+        # Check if the DCA is valid
+        if not Host.validate_dca( dca ): return None
+        # Is this the loopback DCA?
+        if dca == "0.0.0": return self
         # Is this host running in safe mode?
         if self.safemode: return None
-        # It must be an external IP
-        return Host.find_ip( ip )
+        # Is this our local DCA?
+        if dca == self.dca: return self
+        # Grab our default gateway
+        dhost = Host.find_id( self.defgate )
+        # Make sure this host exists
+        if not dhost: return None
+        # Resolve the DCA
+        return dhost.resolve( dca )
 
     # Kill a process running on this host
     # Returns if sucessful or not
@@ -348,7 +388,7 @@ class Host:
                         # Dump the rest of the report
                         traceback.print_exc( None, fd )
                     # Show the user their error report string
-                    proc.error( "phreaknet: a fatal exception has occured, error code: " + errid )
+                    proc.error( "phreaknet: a fatal exception has occured, give this code to a PhreakDEV: " + errid )
                     # Terminate the program
                     proc.func = proc.kill
 
@@ -402,8 +442,8 @@ class Host:
 
     # Convert in game paths to actual system paths
     def respath( self, path ):
-        if not path.startswith( "dir/" + self.hostid ):
-            path = "dir/" + self.hostid + path
+        if not path.startswith( "dir/" + self.uid ):
+            path = "dir/" + self.uid + path
         return os.path.normpath( path )
 
     # Set privlages for a direcory
@@ -828,8 +868,8 @@ class Host:
         # Increment the new userID
         self.nuid += 1
         # Make this user's home directory
-        os.makedirs( "dir/" + self.hostid + "/usr/" + nuser )
-        with open( "dir/" + self.hostid + "/usr/." + nuser + ".inode", "w" ) as fd: fd.write( "rwx------ " + nuser + " " + nuser )
+        os.makedirs( "dir/" + self.uid + "/usr/" + nuser )
+        with open( "dir/" + self.uid + "/usr/." + nuser + ".inode", "w" ) as fd: fd.write( "rwx------ " + nuser + " " + nuser )
         # Return success
         return True
 
@@ -939,13 +979,166 @@ class Host:
         # Return success
         return True
 
-# This program is basically the operating system for a Host. It is alw$
-# first, cannot be run by a user and when killed will shutdown the hos$
-# You can use this program's eventloop to run background OS level oper$
+# A special Host capable of routing
+# Each router can assign a maximum of 255
+class Router( Host ):
+
+    def __init__( self, *args, **kwargs ):
+        # Call super
+        super( ).__init__( *args, **kwargs )
+        ### Networking ###
+        # List of which host is assigned to which DCA
+        # Format:  "DCA_ADDRESS": "HOST_ID"
+        # Example: "12345.12345.12345": "4e00d8e7-fa52-4daf-8141-9c78ad8f494e"
+        self.netstat = {}
+
+        # Next host dca for request
+        self.ndca = 0
+
+    # Processes and Programs should use this as much as possible
+    def resolve( self, dca ):
+        # Can't do anything if we're offline
+        if not self.online: return None
+        # Check if the DCA is valid
+        if not Host.validate_dca( dca ): return None
+        # Is this the loopback dca?
+        if dca == "0.0.0": return self
+        # Is this host running in safe mode?
+        if self.safemode: return None
+        # Is this the router's local DCA?
+        if dca == self.dca: return self
+	# Check if the ISP and Router partitions match
+        if dca.startswith( self.dca[:-1] ):
+            # Since this is local, just resolve the netstat
+            return Host.find_id( self.netstat.get( ip, None ) )
+        else:
+            # Need to pass this up the chain
+            # Grab our default gateway
+            dhost = Host.find_id( self.defgate )
+            # Make sure this host exists
+            if not dhost: return None
+            # Resolve the DCA
+            return dhost.resolve( dca )
+
+    # Request an DCA address from this router
+    def request_dca( self, uid ):
+        # We don't have an address
+        if not self.dca: return ""
+        # Loop until a free TTY is found
+        for _ in range( 65535 ):
+            # Increment self.ntty from last time
+            self.ndca += 1
+            # Make sure self.ntty isn't greater than 65535
+            if self.ndca >= 65535: self.ndca = 1
+            # Concatenate the DCA
+            dca = self.dca[:-1] + self.ndca
+            # Make sure this DCA is free
+            if not dca in self.netstat: continue
+            # Store the DCA and uid
+            self.netstat[dca] = uid
+
+            # DCA is not in use, return it
+            return dca
+
+        # No DCAs available
+        return ""
+
+# A special host for ISPs
+class ISPHost( Router ):
+
+    # Resolve between ISP addresses, highest level
+    @staticmethod
+    def isp_resolve( dca ):
+        # Check if this a valid DCA
+        if not Host.validate_dca( dca ): return None
+        # Get the ISP partition
+        dcaisp = dca.split( "." )[0]
+        # Iterate through all hosts
+        for h in Host.hosts:
+            # Make sure this is an ISP
+            if isinstance( h, ISPHost ):
+                # Check to see if the ISP partition matches
+                if h.dca.startswith( dcaisp ):
+                    # Have that ISP resolve the DCA
+                    return h.resolve( dca )
+        # No ISP found with that DCA
+        return None
+
+    # Get a new IP from the ISP pool
+    @staticmethod
+    def isp_request_dca( uid ):
+        for _ in range( 65535 ):
+           # Next dca to assign
+           ndca = 1 # Start with 1 since 0.0.0 is loopback
+           # Generate DCA string
+           dca = str( ndca ) + ".0.0"
+           # Check to see if this is taken
+           for h in Host.hosts:
+               # Only check ISPs
+               if instance( h, ISPHost ):
+                   # Check to see if the DCA is in use
+                   if dca == h.dca: break
+           else:
+               # DCA is not in use, return it
+               return dca
+        # No DCA availalbe
+        return ""
+
+    def __init__( self, *args, **kwargs ):
+        # Call super
+        super( ).__init__( *args, **kwargs )
+        ### Networking ###
+        self.dca = ISPHost.isp_request_dca( self.uid )
+
+    def resolve( self, dca ):
+        # Can't do anything if we're offline
+        if not self.online: return None
+        # Check if the DCA is valid
+        if not Host.validate_dca( dca ): return None
+        # Is this the loopback dca?
+        if dca == "0.0.0": return self
+        # Is this host running in safe mode?
+        if self.safemode: return None
+        # Is this the router's local DCA?
+        if dca == self.dca: return self
+        # Check if the ISP and Router partitions match
+        if dca.startswith( self.dca[:-3] ):
+            # Since this is local, just resolve the netstat
+            return Host.find_id( self.netstat.get( ip, None ) )
+        else:
+            # Check all other ISPs for the DCA
+            return ISPHost.isp_resolve( dca )
+
+    # Request an DCA address from this router
+    def request_dca( self, uid ):
+        # We don't have an address
+        if not self.dca: return ""
+        # Loop until a free TTY is found
+        for _ in range( 65535 ):
+            # Increment self.ntty from last time
+            self.ndca += 1
+            # Make sure self.ntty isn't greater than 65535
+            if self.ndca >= 65535: self.ndca = 1
+            # Concatenate the DCA
+            dca = self.dca[:-3] + self.ndca + ".0"
+            # Make sure this DCA is free
+            if not dca in self.netstat: continue
+            # Store the DCA and uid
+            self.netstat[dca] = uid
+
+            # DCA is not in use, return it
+            return dca
+
+        # No DCAs available
+        return ""
+
+# This program is basically the operating system for a Host. It is run
+# first, cannot be run by a user and when killed will shutdown the host
+# You can use this program's eventloop to run background OS level operations
 class Systemx( Program ):
 
     def __init__( self ):
-        # No need for params, since this program is never run by a rea$
+        # No need for params, since this program is never run by a user
         super( ).__init__( "root", "/", -1, (80, 24), None, [] )
 
     def run( self ):

@@ -63,7 +63,7 @@ class Worldmap( Program ):
         # Draw the map
         self.drawmap( )
         # Draw an X on the Host
-        self.drawString( self.getXY( self.host.geoloc["location"] ), "X" )
+        self.drawString( self.getXY( self.host.get_location( ) ), "X" )
         # Finish
         return self.kill
 
@@ -214,7 +214,7 @@ class Worldmap( Program ):
     # Clean up the screen
     def kill( self ):
         # Reset cursor on death
-        self.printl( ansi_move( self.size[1], 0 ) )
+        self.println( ansi_move( self.size[1], 0 ) )
         # Call our parent function
         super( ).kill( )
 
@@ -249,9 +249,6 @@ def resolveCountry( code ):
 
 # Get the dict from a row in longer list
 def getCity( city ):
-    # Store the population
-    pop = 0
-    if city[4]: pop = int( float( city[4] ) )
     # Build and return the dictionary
     return {
         # Country code for this city
@@ -260,45 +257,41 @@ def getCity( city ):
         "country": resolveCountry( city[0] ),
         # Name of the city in standard ASCII
         "name": city[1],
-        # Non-ASCII name of the city (we can't print this so its not used)
-#       "realname": city[2],
         # Region (state) code for this city
-        "region": city[3],
+        "region": city[2],
         # Population
-        "population": pop,
+        "population": int( float( city[3] ) ),
         # Location (latitude, longitude)
-        "location": ( float( city[5] ), float( city[6] ) )
+        "location": ( float( city[4] ), float( city[5] ) )
     }
 
 # Returns a dict containing info regarding a city
-# string  | country ........ the country code where this city is located
-# string  | region ......... the region code where this city is located
-# string  | cname .......... the exact name of the city to search for
-# boolean | includeMinor ... whether to include cities without population sizes
-def getCityName( country, region, cname, includeMinor=False ):
+# string  | country ... the country code where this city is located
+# string  | region .... the region code where this city is located
+# string  | cname ..... the exact name of the city to search for
+def getCityName( country, region, cname ):
     # Read the cities data file
     with open( "dat/worldcitiespop.txt" ) as fd:
-        # Skip the header
-        next( fd )
         # Iterate over each entry
-        for fline in fd:
+        for fline in fd.readlines( ):
             # Split the data on commas
             city = fline.strip( ).split( "," )
             # Check if the plaintext name matches
-            if ( city[0].lower( ) == county.lower( ) and city[1].lower( ) == cname.lower( )
-            and city[4].lower( ) == region.lower( ) and ( city[4] or includeMinor ) ):
+            if ( city[0].lower( ) == country.lower( )
+            and  city[1].lower( ) == cname.lower( )
+            and  city[2].lower( ) == region.lower( ) ):
                 # Build and return the dictionary
                 return getCity( city )
         # City not found
         return None
 
 # Get a random city with a population greater than size
-# Major City: size=3 :          population > 15,000
-# Avg.  City: size=2 : 15,000 > population >  5,000
-# Small City: size=1 :  5,000 > population >  1,000
-#       Town: size=0 :  1,000 > population
-#   Any city: size=0 : 99,999 > population > 0
-def getCityRandom( size=0 ):
+# Large  City: size =  3 : Infinity > population > 15,000
+# Medium City: size =  2 :   15,000 > population >  5,000
+# Small  City: size =  1 :    5,000 > population >  1,000
+#        Town: size =  0 :    1,000 > population >      0
+#    Any City: size = -1 : Infinity > population >      0
+def getCityRandom( size=-1 ):
     # Make sure a correct size was given
     if size < -1 or size > 3: raise IndexError( "invalid city size" )
     # List of population sizes
@@ -307,18 +300,16 @@ def getCityRandom( size=0 ):
     clist = []
     # Read the cities data file
     with open( "dat/worldcitiespop.txt" ) as fd:
-        # Skip the header
-        next( fd )
         # Iterate through each city
         for fline in fd:
             # Split on commas
             city = fline.strip( ).split( "," )
             # Check if size is irrelivent
-            if size < 0 and city[4]:
+            if size < 0 and city[3]:
                 clist.append( getCity( city ) )
             # Check if this city has enough people
-            elif ( city[4] and float( city[4] ) > psize[size]
-            and float( city[4] ) < psize[size + 1] ):
+            elif ( float( city[3] ) > psize[size]
+            and float( city[3] ) < psize[size + 1] ):
                 # Add this city to the list
                 clist.append( getCity( city ) )
     # Get a random element
