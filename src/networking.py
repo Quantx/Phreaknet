@@ -231,8 +231,8 @@ class Client:
 
             # Check if we're connected to a gateway machine
             if self.gateway is not None:
-                # Resolve the gateway from this IP
-                gatehost = ISPRouter.isp_resolve( self.gateway[0] )
+                # Find the gateway from the host id
+                gatehost = Host.find_id( self.gateway[0] )
                 # Does the gateway still exist?
                 if gatehost is not None:
                     # Formulate packet with no delay or lag
@@ -368,8 +368,8 @@ class Client:
                                 self.account = acct
                                 # Log the event
                                 xlog( "Logged in successfully" )
-                                # Resolve this account's gateway IP
-                                gatehost = ISPRouter.isp_resolve( self.account.gateway )
+                                # Find the gateway from the host id
+                                gatehost = Host.find_id( self.account.gateway )
                                 # Does this account own a gateway
                                 if gatehost is None:
                                     # Print the banner for buying a gateway
@@ -445,8 +445,8 @@ class Client:
 
     # Handle gateway management
     def manager( self, data ):
-        # Resolve this account's gateway IP
-        gatehost = ISPRouter.isp_resolve( self.account.gateway )
+        # Find the gatehost from the host id
+        gatehost = Host.find_id( self.account.gateway )
 
         # Does this user even own a gateway?
         if gatehost is None:
@@ -462,8 +462,8 @@ class Client:
                 nhst.join_group( self.account.username, "sudo", "root" )
                 # Log the creation
                 xlog( "Requested a new gateway: " + nhst.hostname + "@" + nhst.dca )
-                # Copy the IP address
-                self.account.gateway = nhst.dca
+                # Copy the host's UID
+                self.account.gateway = nhst.uid
                 # Print the system boot banner
                 self.print_banner( boot_banner, boot_pos )
         # If the gateway is online, pick a TTY
@@ -480,7 +480,7 @@ class Client:
                     if type(proc) is PhreakShell and proc.tty == ntty:
                         # Make sure this Shell isn't in use
                         for cli in self.tserv.clients:
-                            if cli.gateway == ( gatehost.dca, proc.pid ):
+                            if cli.gateway == ( gatehost.uid, proc.pid ):
                                 # Found another client logged into our shell
                                 break
                         else:
@@ -492,7 +492,7 @@ class Client:
                             # Output the scrollback buffer
                             self.stdout( proc.out_back )
                             # Connect this client to the shell
-                            self.gateway = ( gatehost.dca, proc.pid )
+                            self.gateway = ( gatehost.uid, proc.pid )
                             break
                         # Shell is already in use, abort
                         break
@@ -502,7 +502,7 @@ class Client:
                     nsh = PhreakShell( self.account.username,
                         "/usr/" + self.account.username, ntty, self.size )
                     # Start the shell on the new host, and set the gateway
-                    self.gateway = gatehost.start( nsh )
+                    self.gateway = ( gatehost.uid, gatehost.start( nsh )[1] )
             # Did the user press backspace
             elif data == "\x7F" and len( self.mg_tty ) > 0:
                 # Strip the last character from the string
@@ -527,7 +527,7 @@ class Client:
         # Check if we're connected to a gateway
         if self.gateway is not None:
             # Get the shell process on the gateway
-            gateshell = ISPRouter.isp_resolve( self.gateway[0] ).get_pid( self.gateway[1] )
+            gateshell = Host.find_id( self.gateway[0] ).get_pid( self.gateway[1] )
             if gateshell is not None:
                 # Fetch any output from the shell process and transmit it
                 data = gateshell.get_stdout( )
@@ -536,8 +536,8 @@ class Client:
                 # Shell doesn't exist
                 self.gateway = None
                 # Print the correct banner
-                # Resolve gateway from IP
-                gateshell = ISPRouter.isp_resolve( self.account.gateway )
+                # Find the gateway from host's UID
+                gateshell = Host.find_id( self.account.gateway )
                 # User no longer owns a gateway
                 if gateshell is None:
                     self.print_banner( legal_banner, legal_pos )
@@ -629,7 +629,7 @@ class TelnetClient( Client ):
 
             # Update our gateway's size too
             if self.gateway is not None:
-                gateshell = ISPRouter.isp_resolve( self.gateway[0] ).get_pid( self.gateway[1] )
+                gateshell = Host.find_id( self.gateway[0] ).get_pid( self.gateway[1] )
                 gateshell.set_size( self.size )
             # Was a command string
             return True

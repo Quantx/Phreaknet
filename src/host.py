@@ -115,7 +115,11 @@ class Host:
         # Contact the default gateway and request a DCA
         dhost = Host.find_id( self.defgate )
         if dhost:
-            tdca = dhost.request_dca( self.uid )
+            tdca = ""
+            if type( self ) is Router:
+                tdca = dhost.request_router_dca( self.uid )
+            else:
+                tdca = dhost.request_dca( self.uid )
             # Check if dca exists
             if tdca: self.dca = tdca
         # Phone number of the host, "" = no landline
@@ -992,7 +996,6 @@ class Router( Host ):
         # Format:  "DCA_ADDRESS": "HOST_ID"
         # Example: "12345.12345.12345": "4e00d8e7-fa52-4daf-8141-9c78ad8f494e"
         self.netstat = {}
-
         # Next host dca for request
         self.ndca = 0
 
@@ -1032,9 +1035,9 @@ class Router( Host ):
             # Make sure self.ndca isn't greater than 65535
             if self.ndca >= 65535: self.ndca = 1
             # Concatenate the DCA
-            dca = self.dca[:-1] + self.ndca
+            dca = self.dca[:-1] + str( self.ndca )
             # Make sure this DCA is free
-            if not dca in self.netstat: continue
+            if dca in self.netstat: continue
             # Store the DCA and uid
             self.netstat[dca] = uid
 
@@ -1068,9 +1071,9 @@ class ISPRouter( Router ):
     # Get a new DCA from the ISP pool
     @staticmethod
     def isp_request_dca( uid ):
+        # Next dca to assign
+        ndca = 1 # Start with 1 since 0.0.0 is loopback
         for _ in range( 65535 ):
-           # Next dca to assign
-           ndca = 1 # Start with 1 since 0.0.0 is loopback
            # Generate DCA string
            dca = str( ndca ) + ".0.0"
            # Check to see if this is taken
@@ -1082,6 +1085,10 @@ class ISPRouter( Router ):
            else:
                # DCA is not in use, return it
                return dca
+           # Get the next dca
+           ndca += 1
+           # Loop around
+           if ndca >= 65535: ndca = 1
         # No DCA availalbe
         return ""
 
@@ -1131,9 +1138,9 @@ class ISPRouter( Router ):
             # Make sure self.nrdca isn't greater than 65535
             if self.nrdca >= 65535: self.nrdca = 1
             # Concatenate the DCA
-            dca = self.dca[:-3] + self.ndca + ".0"
+            dca = self.dca[:-3] + str( self.nrdca ) + ".0"
             # Make sure this DCA is free
-            if not dca in self.routetbl: continue
+            if dca in self.routetbl: continue
             # Store the DCA and uid
             self.routetbl[dca] = uid
 
@@ -1147,11 +1154,6 @@ class ISPRouter( Router ):
     def request_dca( self, uid ):
         # We don't have an address
         if not self.dca: return ""
-        # Get the host requesting an DCA
-        dhost = Host.find_id( uid )
-        # Check if this host is a router
-        if dhost and type( dhost ) is Router:
-            return request_router_dca( uid )
         # Loop until a free DCA is found
         for _ in range( 65535 ):
             # Increment self.ndca from last time
@@ -1159,9 +1161,9 @@ class ISPRouter( Router ):
             # Make sure self.ndca isn't greater than 65535
             if self.ndca >= 65535: self.ndca = 1
             # Concatenate the DCA
-            dca = self.dca[:-1] + self.ndca
+            dca = self.dca[:-1] + str( self.ndca )
             # Make sure this DCA is free
-            if not dca in self.netstat: continue
+            if dca in self.netstat: continue
             # Store the DCA and uid
             self.netstat[dca] = uid
 

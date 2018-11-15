@@ -16,6 +16,19 @@ class Company:
     # Store all companies
     companies = []
 
+    # Find company by id
+    @staticmethod
+    def find_id( cid ):
+        # Make sure we got a valid uuid
+        if cid and len( cid ) != 36: return None
+        # Iterate through id
+        for cmp in Company.companies:
+            # Is this the correct host
+            if cmp.uid == cid:
+                return cmp
+        # No host matches this ID
+        return None
+
     # Generate a bunch of companies for Phreaknet DO THIS ONCE
     @classmethod
     def generate_companies( cls ):
@@ -23,10 +36,16 @@ class Company:
         if Company.companies: return False
         # Load ISPs first
         with open( "dat/companies/isp" ) as fd:
+             # Count the companies
+             ccnt = 0
              # Iterate through each line of this file
              for comp in fd.readlines( ):
                  # Generate the company and store it
                  Company.companies.append( ISP( comp, getCityRandom( 3 ) ) )
+                 # Add 1 to the count
+                 ccnt += 1
+             # Debug
+             xlog( "Created %s isp companies" % ccnt )
 
         # List through all our child classes
         for sub in cls.__subclasses__( ):
@@ -38,10 +57,16 @@ class Company:
             if not os.path.isfile( "dat/companies/" + ctype ): continue
             # Load this company's data file
             with open( "dat/companies/" + ctype ) as fd:
+                # Count the companies
+                ccnt = 0
                 # Iterate through each line of this file
                 for comp in fd.readlines( ):
                     # Generate the company and store it
                     Company.companies.append( sub( comp, getCityRandom( ) ) )
+                    # Add 1 to the count
+                    ccnt += 1
+                # Debug
+                xlog( "Created %s %s companies" % ( ccnt, ctype ) )
 
     # Get a random company
     @classmethod
@@ -96,7 +121,8 @@ class Company:
             self.router = ISPRouter( self.name, self.geoloc ).uid
         else:
             self.isp = ISP.random_company( )
-            self.router = Router( self.name, self.geoloc, self.isp ).uid
+            routerid = Company.find_id( self.isp ).router
+            self.router = Router( self.name, self.geoloc, routerid ).uid
 
     # Add a new host to this company, returns host id
     def add_host( self, hostname ):

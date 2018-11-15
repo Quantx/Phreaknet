@@ -48,7 +48,7 @@ class Account:
         self.password = self.hash_pass( pwd )
         # Exact time this account was created
         self.first = time.time( )
-        # The IP adresses of this account's gateway
+        # The UID of this account's gateway
         self.gateway = ""
         # 0=Normal user, 1=Operator, 2=Admin
         self.phreakpriv = 2
