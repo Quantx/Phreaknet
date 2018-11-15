@@ -700,7 +700,7 @@ class SSH( Program ):
             self.println( "Logged in as user " + self.user.upper() )
             # Create a new shell
             prg = pclass( self.user, hpath, self.ssh_ntty,
-                self.size, ( self.host.ip, self.pid ) )
+                self.size, ( self.host.dca, self.pid ) )
             # Start a shell on the remote host, and set the destination
             self.destin = dhost.start( prg )
         else:
@@ -792,8 +792,8 @@ class Hostname( Program ):
             # Print the hostname
             self.println( self.host.hostname )
             # Does this host have an IP address assigned?
-            if self.host.ip:
-                self.println( self.host.ip )
+            if self.host.dca:
+                self.println( self.host.dca )
             else:
                 self.println( "No IP address" )
             # Does this host have a Phone number assigned?

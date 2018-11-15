@@ -59,7 +59,7 @@ class Host:
         for h in Host.hosts:
             # Is this the correct host
             if h.uid == hid:
-                return hid
+                return h
         # No host matches this ID
         return None
 
@@ -99,7 +99,7 @@ class Host:
     # string  | name ....... The hostname of this host
     # dict    | citydata ... The city data dict for this host
     # string  | defgate .... The ISP of this host (ignored if isisp is true)
-    def __init__( self, name, citydata, defgate=None ):
+    def __init__( self, name, citydata, defgate="" ):
         # The unique ID of this host
         self.uid = str( uuid.uuid4( ) )
 
@@ -109,10 +109,11 @@ class Host:
         # The physical location of the host
         self.geoloc = citydata
         # Default gateway for this host (The host ID of this host's Router)
+        self.defgate = defgate
         # An empty string indicates no network connection
         self.dca = ""
         # Contact the default gateway and request a DCA
-        dhost = Host.find_id( defgate )
+        dhost = Host.find_id( self.defgate )
         if dhost:
             tdca = dhost.request_dca( self.uid )
             # Check if dca exists
@@ -306,7 +307,7 @@ class Host:
         # Append program to our ptbl
         self.ptbl.append( proc )
         # Program started, return the tuple
-        return ( self.defgate, proc.pid )
+        return ( self.dca, proc.pid )
 
     # Processes and Programs should use this as much as possible
     def resolve( self, dca ):
@@ -1010,7 +1011,7 @@ class Router( Host ):
 	# Check if the ISP and Router partitions match
         if dca.startswith( self.dca[:-1] ):
             # Since this is local, just resolve the netstat
-            return Host.find_id( self.netstat.get( ip, None ) )
+            return Host.find_id( self.netstat.get( dca, None ) )
         else:
             # Need to pass this up the chain
             # Grab our default gateway
@@ -1024,11 +1025,11 @@ class Router( Host ):
     def request_dca( self, uid ):
         # We don't have an address
         if not self.dca: return ""
-        # Loop until a free TTY is found
+        # Loop until a free DCA is found
         for _ in range( 65535 ):
-            # Increment self.ntty from last time
+            # Increment self.ndca from last time
             self.ndca += 1
-            # Make sure self.ntty isn't greater than 65535
+            # Make sure self.ndca isn't greater than 65535
             if self.ndca >= 65535: self.ndca = 1
             # Concatenate the DCA
             dca = self.dca[:-1] + self.ndca
@@ -1044,7 +1045,7 @@ class Router( Host ):
         return ""
 
 # A special host for ISPs
-class ISPHost( Router ):
+class ISPRouter( Router ):
 
     # Resolve between ISP addresses, highest level
     @staticmethod
@@ -1056,7 +1057,7 @@ class ISPHost( Router ):
         # Iterate through all hosts
         for h in Host.hosts:
             # Make sure this is an ISP
-            if isinstance( h, ISPHost ):
+            if type( h ) is ISPRouter:
                 # Check to see if the ISP partition matches
                 if h.dca.startswith( dcaisp ):
                     # Have that ISP resolve the DCA
@@ -1064,7 +1065,7 @@ class ISPHost( Router ):
         # No ISP found with that DCA
         return None
 
-    # Get a new IP from the ISP pool
+    # Get a new DCA from the ISP pool
     @staticmethod
     def isp_request_dca( uid ):
         for _ in range( 65535 ):
@@ -1075,7 +1076,7 @@ class ISPHost( Router ):
            # Check to see if this is taken
            for h in Host.hosts:
                # Only check ISPs
-               if instance( h, ISPHost ):
+               if type( h ) is ISPRouter:
                    # Check to see if the DCA is in use
                    if dca == h.dca: break
            else:
@@ -1088,7 +1089,12 @@ class ISPHost( Router ):
         # Call super
         super( ).__init__( *args, **kwargs )
         ### Networking ###
-        self.dca = ISPHost.isp_request_dca( self.uid )
+        self.dca = ISPRouter.isp_request_dca( self.uid )
+        # Store all the routers at connected to this ISP
+        # Same format as netstat
+        self.routetbl = {}
+        # Next router class DCA
+        self.nrdca = 1
 
     def resolve( self, dca ):
         # Can't do anything if we're offline
@@ -1103,24 +1109,57 @@ class ISPHost( Router ):
         if dca == self.dca: return self
         # Check if the ISP and Router partitions match
         if dca.startswith( self.dca[:-3] ):
-            # Since this is local, just resolve the netstat
-            return Host.find_id( self.netstat.get( ip, None ) )
+            # Is the DCA on this ISPRouter's router domain?
+            if dca.startswith( self.dca[:-1] ):
+                # Since this is local, just resolve the netstat
+                return Host.find_id( self.netstat.get( dca, None ) )
+            else:
+                return Host.find_id( self.routetbl.get( dca, None ) )
         else:
             # Check all other ISPs for the DCA
-            return ISPHost.isp_resolve( dca )
+            return ISPRouter.isp_resolve( dca )
+
+    # Don't call this directly
+    # Generate a router class DCA
+    def request_router_dca( self, uid ):
+        # We don't have an address
+        if not self.dca: return ""
+        # Loop until a free DCA is found
+        for _ in range( 65535 ):
+            # Increment self.nrdca from last time
+            self.nrdca += 1
+            # Make sure self.nrdca isn't greater than 65535
+            if self.nrdca >= 65535: self.nrdca = 1
+            # Concatenate the DCA
+            dca = self.dca[:-3] + self.ndca + ".0"
+            # Make sure this DCA is free
+            if not dca in self.routetbl: continue
+            # Store the DCA and uid
+            self.routetbl[dca] = uid
+
+            # DCA is not in use, return it
+            return dca
+
+        # No DCAs available
+        return ""
 
     # Request an DCA address from this router
     def request_dca( self, uid ):
         # We don't have an address
         if not self.dca: return ""
-        # Loop until a free TTY is found
+        # Get the host requesting an DCA
+        dhost = Host.find_id( uid )
+        # Check if this host is a router
+        if dhost and type( dhost ) is Router:
+            return request_router_dca( uid )
+        # Loop until a free DCA is found
         for _ in range( 65535 ):
-            # Increment self.ntty from last time
+            # Increment self.ndca from last time
             self.ndca += 1
-            # Make sure self.ntty isn't greater than 65535
+            # Make sure self.ndca isn't greater than 65535
             if self.ndca >= 65535: self.ndca = 1
             # Concatenate the DCA
-            dca = self.dca[:-3] + self.ndca + ".0"
+            dca = self.dca[:-1] + self.ndca
             # Make sure this DCA is free
             if not dca in self.netstat: continue
             # Store the DCA and uid

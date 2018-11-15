@@ -17,7 +17,7 @@ import geoip2.errors
 from random import randint
 
 # Phreaknet Public IP Address
-pnip = requests.get( "http://ip.42.pl/raw" ).text
+pnip = requests.get( "https://api.ipify.org").text
 
 # The reader for the geoip2 database
 ipdb = geoip2.database.Reader( "../dat/GeoLite2-City.mmdb" )
@@ -232,7 +232,7 @@ class Client:
             # Check if we're connected to a gateway machine
             if self.gateway is not None:
                 # Resolve the gateway from this IP
-                gatehost = Host.find_ip( self.gateway[0] )
+                gatehost = ISPRouter.isp_resolve( self.gateway[0] )
                 # Does the gateway still exist?
                 if gatehost is not None:
                     # Formulate packet with no delay or lag
@@ -369,7 +369,7 @@ class Client:
                                 # Log the event
                                 xlog( "Logged in successfully" )
                                 # Resolve this account's gateway IP
-                                gatehost = Host.find_ip( self.account.gateway )
+                                gatehost = ISPRouter.isp_resolve( self.account.gateway )
                                 # Does this account own a gateway
                                 if gatehost is None:
                                     # Print the banner for buying a gateway
@@ -446,22 +446,24 @@ class Client:
     # Handle gateway management
     def manager( self, data ):
         # Resolve this account's gateway IP
-        gatehost = Host.find_ip( self.account.gateway )
+        gatehost = ISPRouter.isp_resolve( self.account.gateway )
 
         # Does this user even own a gateway?
         if gatehost is None:
             # Wait for enter to get pressed
             if data.find( "\r" ) >= 0:
+                # Get the phreaknet company
+                pcom = PhreaknetOrg.get_phreaknet( )
                 # Make a new gateway
-                nhst = Host( "Gateway_" + str( randint( 100000, 999999 ) ), "palo alto" )
+                nhst = pcom.add_host( "Gateway_" + str( randint( 100000, 999999 ) ) )
                 # Add our account to this gateway
                 nhst.add_user( self.account, "root" )
                 # Give this account root access
                 nhst.join_group( self.account.username, "sudo", "root" )
                 # Log the creation
-                xlog( "Requested a new gateway: " + nhst.hostname + "@" + nhst.ip )
+                xlog( "Requested a new gateway: " + nhst.hostname + "@" + nhst.dca )
                 # Copy the IP address
-                self.account.gateway = nhst.ip
+                self.account.gateway = nhst.dca
                 # Print the system boot banner
                 self.print_banner( boot_banner, boot_pos )
         # If the gateway is online, pick a TTY
@@ -478,7 +480,7 @@ class Client:
                     if type(proc) is PhreakShell and proc.tty == ntty:
                         # Make sure this Shell isn't in use
                         for cli in self.tserv.clients:
-                            if cli.gateway == ( gatehost.ip, proc.pid ):
+                            if cli.gateway == ( gatehost.dca, proc.pid ):
                                 # Found another client logged into our shell
                                 break
                         else:
@@ -490,7 +492,7 @@ class Client:
                             # Output the scrollback buffer
                             self.stdout( proc.out_back )
                             # Connect this client to the shell
-                            self.gateway = ( gatehost.ip, proc.pid )
+                            self.gateway = ( gatehost.dca, proc.pid )
                             break
                         # Shell is already in use, abort
                         break
@@ -525,7 +527,7 @@ class Client:
         # Check if we're connected to a gateway
         if self.gateway is not None:
             # Get the shell process on the gateway
-            gateshell = Host.find_ip( self.gateway[0] ).get_pid( self.gateway[1] )
+            gateshell = ISPRouter.isp_resolve( self.gateway[0] ).get_pid( self.gateway[1] )
             if gateshell is not None:
                 # Fetch any output from the shell process and transmit it
                 data = gateshell.get_stdout( )
@@ -535,7 +537,7 @@ class Client:
                 self.gateway = None
                 # Print the correct banner
                 # Resolve gateway from IP
-                gateshell = Host.find_ip( self.account.gateway )
+                gateshell = ISPRouter.isp_resolve( self.account.gateway )
                 # User no longer owns a gateway
                 if gateshell is None:
                     self.print_banner( legal_banner, legal_pos )
@@ -627,7 +629,7 @@ class TelnetClient( Client ):
 
             # Update our gateway's size too
             if self.gateway is not None:
-                gateshell = Host.find_ip( self.gateway[0] ).get_pid( self.gateway[1] )
+                gateshell = ISPRouter.isp_resolve( self.gateway[0] ).get_pid( self.gateway[1] )
                 gateshell.set_size( self.size )
             # Was a command string
             return True

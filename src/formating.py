@@ -32,9 +32,9 @@ def xlog( msg ):
        # Add the hostname
        out += "[" + hst.hostname
        # Add the IP
-       if self.ip: out += "|" + hst.ip
+       if self.dca: out += "|" + hst.dca
        # Add the Phone number
-       if self.ip: out += "|" + hst.phone
+       if self.phone: out += "|" + hst.phone
        # Add the closing bracket
        out += "]"
 

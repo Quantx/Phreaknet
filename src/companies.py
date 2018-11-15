@@ -21,37 +21,45 @@ class Company:
     def generate_companies( cls ):
         # Abort unless companies is empty
         if Company.companies: return False
-        # Make sure we don't make duplicate companies
-        excomp = []
-        for comp in next( os.walk( 'cmp' ) )[2]:
-            # Strip the file extension
-            excomp.append( comp[:-4] )
+        # Load ISPs first
+        with open( "dat/companies/isp" ) as fd:
+             # Iterate through each line of this file
+             for comp in fd.readlines( ):
+                 # Generate the company and store it
+                 Company.companies.append( ISP( comp, getCityRandom( 3 ) ) )
+
         # List through all our child classes
         for sub in cls.__subclasses__( ):
             # Get the type of company
-            ctype = sub.__name__.lower()
+            ctype = sub.__name__.lower( )
+            # Already did ISPs skip this
+            if ctype == "isp": continue
             # Is this an abstract company?
             if not os.path.isfile( "dat/companies/" + ctype ): continue
             # Load this company's data file
             with open( "dat/companies/" + ctype ) as fd:
                 # Iterate through each line of this file
                 for comp in fd.readlines( ):
-                    # Make sure this company doesnt already exist
-                    if comp in excomp: continue
                     # Generate the company and store it
-                    Company.companies.append( sub( comp, 0 ) )
+                    Company.companies.append( sub( comp, getCityRandom( ) ) )
 
-    # Return the PhreakNET organization
-    @staticmethod
-    def get_phreaknet( ):
-        # Iterate through all the companies
+    # Get a random company
+    @classmethod
+    def random_company( cls ):
+        # Choices list
+        output = []
+        # Iterate through all companies
         for cmp in Company.companies:
-            # Is this the correct company?
-            if type( cmp ) is PhreaknetOrg:
-                # Return it
-                return cmp
-        # If this function returns None then there is a problem
-        return None
+            # Check if this is the right type of company
+            if isinstance( cmp, cls ):
+                # Add it to the list
+                output.append( cmp.uid )
+        # No companies of this type
+        if not output: return ""
+        # Get a random company
+        i = random.randint( 0, len( output ) - 1 )
+        # Return that company
+        return output[i]
 
     # Load all accounts from disk
     @staticmethod
@@ -66,26 +74,38 @@ class Company:
                 with open( 'cmp/' + cmp, 'rb' ) as f:
                     Company.companies.append( pickle.load( f ) )
 
-    def __init__( self, name, geoloc ):
+    def __init__( self, name, geoloc=None ):
         # Generate a unique id for the company
         self.uid = str( uuid.uuid4( ) )
         # Generate a random name
         self.name = name
         # The location of this company
-        self.geoloc = geoloc
+        if geoloc:
+            self.geoloc = geoloc
+        else:
+            self.geoloc = getCityRandom( )
         # Store this company's staff
         self.staff = []
         # Store this company's hosts
         self.hosts = []
+        # Store this company's ip
+        self.isp = ""
+        # Store this company's router
+        # Check if we need an ISP class router
+        if type( self ) is ISP:
+            self.router = ISPRouter( self.name, self.geoloc ).uid
+        else:
+            self.isp = ISP.random_company( )
+            self.router = Router( self.name, self.geoloc, self.isp ).uid
 
     # Add a new host to this company, returns host id
     def add_host( self, hostname ):
         # Create the host
-        hst = Host( hostname, self.geoloc )
+        hst = Host( hostname, self.geoloc, self.router )
         # Add it to the list
-        self.hosts.append( hst )
-        # Return the host ID
-        return hst.uid
+        self.hosts.append( hst.uid )
+        # Return the host
+        return hst
 
 # A banking company
 class Bank( Company ):
@@ -110,8 +130,18 @@ class ISP( Company ):
 # A special company for PhreakNET in-game corporation
 class PhreaknetOrg( Company ):
 
+    # Return the PhreakNET organization
+    @staticmethod
+    def get_phreaknet( ):
+        # Iterate through all the companies
+        for cmp in Company.companies:
+            # Is this the correct company?
+            if type( cmp ) is PhreaknetOrg:
+                # Return it
+                return cmp
+        # If this function returns None then there is a problem
+        return None
+
     def __init__( self, name, geoloc ):
         # Call super
         super( ).__init__( name, getCityName( "us", "ca", "palo alto" ) )
-        # Generate the Router
-        self.add_host( "PhreakNET " )
