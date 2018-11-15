@@ -998,6 +998,7 @@ class Router( Host ):
         self.netstat = {}
         # Next host dca for request
         self.ndca = 0
+        xlog( self.hostname + "=>" + self.dca )
 
     # Processes and Programs should use this as much as possible
     def resolve( self, dca ):
