@@ -15,7 +15,7 @@ class Porthack( Program ):
     def __init__( self, user, work, tty, size, origin, params=[] ):
         # Pass parent args along
         super( ).__init__( user, work, tty, size, origin, params )
-        # Stores the target host's IP
+        # Stores the target host's DCA
         self.ph_host = ""
 
     # Print the startup banner
@@ -38,11 +38,11 @@ class Porthack( Program ):
         # User does not want to start Porthack
         if self.rl_line == "n": return self.kill
 
-        return self.readline( self.listhost, "enter host IP: ", self.kill )
+        return self.readline( self.listhost, "enter host DCA: ", self.kill )
 
     # Connect to host and list all the services
     def listhost( self ):
-        # Set the IP if this is our first time calling this func
+        # Set the DCA if this is our first time calling this func
         if not self.ph_host: self.ph_host = self.rl_line
         # Resolve the host we're hacking
         dhost = self.host.resolve( self.ph_host )

@@ -91,6 +91,8 @@ with open( '../dat/phreaknet/manager.bnr' ) as bnr:
 # There should only be functions related to managing the conns here
 class Server:
 
+    cur_client = None
+
     # DEV: FALSE = NORMAL_OPERATION, TRUE = DEV_MODE
     # IP: The IP address to bind
     def __init__( self, dev=False, ip="" ):
@@ -129,7 +131,9 @@ class Server:
                # Assign connection a client
                cnew = TelnetClient( self, sock )
                # Need to manually print this since its outside the client loop
-               sys.stdout.write( ansi_clear_line( ) + time.strftime( "[%m/%d/%Y|%H:%M:%S]" ) + "Connected to PhreakNET\r\n" )
+               Server.cur_client = cnew
+               xlog( "Connected to PhreakNET" )
+               Server.cur_client = None
                # Append client to array
                self.clients.append( cnew )
             # No remaining connections, break

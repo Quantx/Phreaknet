@@ -48,6 +48,8 @@ host_progs = [
 
 class Host:
 
+    cur_host = None
+
     hosts = []
 
     # Return a host by its ID
@@ -451,7 +453,7 @@ class Host:
             path = "dir/" + self.uid + path
         return os.path.normpath( path )
 
-    # Set privlages for a direcory
+    # Set privileges for a direcory
     # Returns true if privs were altered
     # priv should be a 9 character string in this format:
     # O  G  O
@@ -521,7 +523,7 @@ class Host:
             # Format and return the list
             return dp.readline( ).strip( ).split( )
 
-    # Returns true if this user has privlage to preform this operation
+    # Returns true if this user has privilege to preform this operation
     # Oper: Read = 0, Write = 1, Execute = 2
     def path_priv( self, path, user, oper ):
         # Fix the path
@@ -1026,6 +1028,8 @@ class Router( Host ):
 
     # Request an DCA address from this router
     def request_dca( self, uid ):
+        # Can't do anything if we're offline
+        if not self.online: return ""
         # We don't have an address
         if not self.dca: return ""
         # Loop until a free DCA is found
@@ -1129,6 +1133,8 @@ class ISPRouter( Router ):
     # Don't call this directly
     # Generate a router class DCA
     def request_router_dca( self, uid ):
+        # Can't do anything if we're offline
+        if not self.online: return ""
         # We don't have an address
         if not self.dca: return ""
         # Loop until a free DCA is found
@@ -1152,6 +1158,8 @@ class ISPRouter( Router ):
 
     # Request an DCA address from this router
     def request_dca( self, uid ):
+        # Can't do anything if we're offline
+        if not self.online: return ""
         # We don't have an address
         if not self.dca: return ""
         # Loop until a free DCA is found

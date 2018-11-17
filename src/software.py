@@ -58,7 +58,7 @@ class Program:
     # string             | work ..... this process' current working directory
     # integer            | tty ...... the TTY id this process belongs to
     # (integer, integer) | size ..... the width and height of this TTY
-    # (string, integer)  | origin ... the IP and PID of the parent prog
+    # (string, integer)  | origin ... the DCA and PID of the parent prog
     def __init__( self, user, work, tty, size, origin, params=[] ):
         ### Set by the host when the process is assigned ###
         # Host reference
@@ -89,15 +89,15 @@ class Program:
         # Stores the location of the program to send/recv data to/from
         # Basically the stdin for this program
         # Usage:
-        # tuple | origin = ( ip, pid )
-        # > string  | ip .... IP address of the host running the program that created this one
+        # tuple | origin = ( dca, pid )
+        # > string  | dca ... DCA address of the host running the program that created this one
         # > integer | pid ... Process ID of the program that created this one
         #
         # Example:
         # Send/recv data to/from a pid on a remote host
-        # self.origin = ( IPaddr, 4832 )
+        # self.origin = ( DCA, 4832 )
         # Send/recv data to/from a pid on this host
-        # self.origin = ( IPaddr, 5123 )
+        # self.origin = ( DCA, 5123 )
         self.origin = origin
         # Same contents as self.origin
         # Stores the host and process to which data is sent
@@ -341,7 +341,7 @@ class Program:
         # Reset the pager pos
         self.pg_pos = 0
         # Set the next function to call
-        self.pg_nfunc = None
+        self.pg_nfunc = nfunc
 
         # Reset the readline output, not strictly nescisary
         self.rl_line = ""
@@ -488,6 +488,7 @@ class Shell( Program ):
             "pwd"   : { "fn" : self.pwd,   "help" : "pwd||print the current working directory", },
             "clear" : { "fn" : self.clear, "help" : "clear||clear the terminal screen", },
             "run"   : { "fn" : self.rprog, "help" : "run <file> [params]||execute a file with args", },
+            "sudo"  : { "fn" : None,       "help" : "sudo <command>||execute a command with root privileges", },
         }
 
     # The call to start the command processor
@@ -520,7 +521,7 @@ class Shell( Program ):
                         # We're done here
                         return self.run
                 else:
-                    self.error( "cannot sudo, no privlage" )
+                    self.error( "cannot sudo, no privilege" )
                     # Return early
                     return self.run
 
@@ -656,7 +657,7 @@ class SSH( Program ):
     # Connect to a remote host and start a shell
     def run( self ):
         if self.params:
-            # Resolve the remote host form IP
+            # Resolve the remote host form DCA
             dhost = self.host.resolve( self.params[0] )
             # Check if this is a real host
             if dhost is not None:
@@ -675,14 +676,14 @@ class SSH( Program ):
             else:
                 self.error( "no response from host at " + self.params[0] )
         else:
-            self.error( "usage: ssh <ip address>" )
+            self.error( "usage: ssh <dca address>" )
 
         # Close the program if there was an error
         return self.kill
 
     # Check if we can login to this host
     def login( self ):
-        # Resolve the remote host form IP
+        # Resolve the remote host form DCA
         dhost = self.host.resolve( self.params[0] )
         # Check the password
         if dhost.check_pass( self.user, self.rl_line, "root" ):
@@ -791,11 +792,11 @@ class Hostname( Program ):
         else:
             # Print the hostname
             self.println( self.host.hostname )
-            # Does this host have an IP address assigned?
+            # Does this host have an DCA address assigned?
             if self.host.dca:
                 self.println( self.host.dca )
             else:
-                self.println( "No IP address" )
+                self.println( "No DCA address" )
             # Does this host have a Phone number assigned?
             if self.host.phone:
                 self.println( self.host.phone )
