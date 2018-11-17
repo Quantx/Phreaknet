@@ -23,30 +23,29 @@ def xlog( msg ):
     out = time.strftime( "[%m/%d/%Y|%H:%M:%S]" )
 
     # Was a Client object specified?
-    if Server.cur_client is not None:
+    if cur_client is not None:
         # Assume this user isn't logged in
         username = "Guest"
         # Find this user's associated account
-        if Server.cur_client.account is not None:
-            username = Server.cur_client.account.username
+        if cli.account is not None:
+            username = cli.account.username
         # Append to output
-        out += "[" + Server.cur_client.ip + ":" + str( Server.cur_client.port ) + "|" + username + "]"
+        out += "[" + cli.ip + ":" + str( cli.port ) + "|" + username + "]"
     # Was a host specified?
-    if Host.cur_host is not None:
+    if cur_host is not None:
        # Add the hostname
-       out += "[" + Host.cur_host.hostname
-       # Add the DCA
-       if Host.cur_host.dca: out += "|" + Host.cur_host.dca
+       out += "[" + hst.hostname
+       # Add the IP
+       if self.dca: out += "|" + hst.dca
        # Add the Phone number
-       if Host.cur_host.phone: out += "|" + Host.cur_host.phone
+       if self.phone: out += "|" + hst.phone
        # Add the closing bracket
        out += "]"
 
-    # Add the message
-    out += msg
-
+    # Add the msg to the output
+    out += msg + "\r\n"
     # Print the output
-    sys.stdout.write( ansi_clear_line( ) + out + "\r\n" )
+    sys.stdout.write( ansi_clear_line( ) + out )
 
 # Convert an integer (in seconds) into HH:MM:SS format
 def time_hms( tm ):

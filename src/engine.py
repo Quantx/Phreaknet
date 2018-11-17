@@ -62,39 +62,37 @@ def main( ):
         # Client update cycle: Recieve Input, Send Output
         for _ in range( clen ):
             # Get the next client to update
-            Server.cur_client = gameserv.clients.pop( 0 )
+            cur_client = gameserv.clients.pop( 0 )
             try:
                 # See if this client is alive
-                if Server.cur_client.alive:
+                if cur_client.alive:
                     # Kill any robots, after 5 seconds
-                    if Server.cur_client.is_robot and time.time( ) - Server.cur_client.first > 5:
-                        Server.cur_client.kill( )
+                    if cur_client.is_robot and time.time( ) - cur_client.first > 5:
+                        cur_client.kill( )
                     # Parse any new input
-                    elif Server.cur_client.get_stdin( ):
+                    elif cur_client.get_stdin( ):
                         # Fetch out put from the gateway
-                        Server.cur_client.get_stdout( )
+                        cur_client.get_stdout( )
                         # Add the client to the end of the queue
-                        gameserv.clients.append( Server.cur_client )
+                        gameserv.clients.append( cur_client )
                     else:
                         # Client not connected to Phreaknet
-                        Server.cur_client.kill( )
+                        cur_client.kill( )
             # An exception has occured
             except Exception as e:
                 # Print it
                 traceback.print_exc( )
                 # Kill this client
-                Server.cur_client.kill( )
+                cur_client.kill( )
         # Reset for next loop
-        Server.cur_client = None
+        cur_client = None
 
         # Update all hosts
-        for hst in Host.hosts:
-            # Update the global value
-            Host.cur_host = hst
+        for cur_host in Host.hosts:
             # Call this host's update function
-            Host.cur_host.update( )
+            cur_host.update( )
         # Reset for next loop
-        Host.cur_host = None
+        cur_host = None
 
         # Did that take too long
         if time.time( ) - lastloop > 0.1:
