@@ -617,7 +617,7 @@ class Host:
             raise PhreaknetOSError( "Is a directory" )
 
         # Open the file
-        with open( path ) as fd:
+        with open( path, "rb" ) as fd:
             # Store the contents
             return fd.read( )
 
@@ -626,7 +626,7 @@ class Host:
         # Output variable
         lines = []
         # Get the data
-        data = self.read_file( path, user )
+        data = self.read_file( path, user ).decode( "ascii", "replace" )
         # Convert data to an array
         for ln in data.splitlines( ):
             # Strip any whitespace and append
