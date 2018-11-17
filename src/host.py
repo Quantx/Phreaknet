@@ -268,6 +268,9 @@ class Host:
     # Get a reference for the following PID
     # Returns None if no PID is found
     def get_pid( self, pid ):
+        # Return none if we're offline
+        if not self.online: return None
+        # Iterate through process table
         for p in self.ptbl:
             if p.pid == pid:
                  return p
@@ -1210,6 +1213,7 @@ class Systemx( Program ):
         # No need for params, since this program is never run by a user
         super( ).__init__( "root", "/", -1, (80, 24), None, [] )
 
+    # Just run in an infinite loop, put OS tasks here
     def run( self ):
         return self.run
 

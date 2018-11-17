@@ -541,13 +541,13 @@ class Client:
                 self.gateway = None
                 # Print the correct banner
                 # Find the gateway from host's UID
-                gateshell = Host.find_id( self.account.gateway )
+                gatehost = Host.find_id( self.account.gateway )
                 # User no longer owns a gateway
-                if gateshell is None:
+                if gatehost is None:
                     self.print_banner( legal_banner, legal_pos )
                 # The gateway is still online
-                elif gateshell.online:
-                    self.manager_banner( gateshell )
+                elif gatehost.online:
+                    self.manager_banner( gatehost )
                 # The gateway is offline
                 else:
                     self.print_banner( boot_banner, boot_pos )
