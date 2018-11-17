@@ -1039,7 +1039,13 @@ class Router( Host ):
 	# Check if the ISP and Router partitions match
         if dca.startswith( self.dca[:-1] ):
             # Since this is local, just resolve the netstat
-            return Host.find_id( self.netstat.get( dca, None ) )
+            dhost = Host.find_id( self.netstat.get( dca, None ) )
+            # Don't resolve host that is offline
+            if not dhost.online: return None
+            # Don't resolve host that is in safemode
+            if dhost.safemode: return None
+            # We're good
+            return dhost
         else:
             # Need to pass this up the chain
             # Grab our default gateway
@@ -1143,12 +1149,20 @@ class ISPRouter( Router ):
         if dca == self.dca: return self
         # Check if the ISP and Router partitions match
         if dca.startswith( self.dca[:-3] ):
+            dhost = None
             # Is the DCA on this ISPRouter's router domain?
             if dca.startswith( self.dca[:-1] ):
                 # Since this is local, just resolve the netstat
-                return Host.find_id( self.netstat.get( dca, None ) )
+                dhost = Host.find_id( self.netstat.get( dca, None ) )
             else:
-                return Host.find_id( self.routetbl.get( dca, None ) )
+                # We're looking for a router
+                dhost = Host.find_id( self.routetbl.get( dca, None ) )
+            # Don't resolve host that is offline
+            if not dhost.online: return None
+            # Don't resolve host that is in safemode
+            if dhost.safemode: return None
+            # We're good
+            return dhost
         else:
             # Check all other ISPs for the DCA
             return ISPRouter.isp_resolve( dca )

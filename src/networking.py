@@ -282,7 +282,7 @@ class Client:
                      ansi_move( login_pos[1] ) )
 
     # Print the gateway manager banner
-    def manager_banner( self, host ):
+    def manager_banner( self, gatehost ):
         # Clear the screen
         self.stdout( ansi_clear( ) )
 
@@ -293,8 +293,35 @@ class Client:
         else:
             self.stdout( "".join( manager_banner ) )
 
-        # Fill out blanks
-        pass
+        # Store the status of each TTY
+        stat = []
+
+        # Set the default status
+        for i in range( 12 ): stat.append( "INACTIVE" )
+
+        # Iterate through the process table
+        for proc in gatehost.ptbl:
+            # We only care about PhreakShells
+            if type( proc ) is PhreakShell:
+                # Default to standby
+                stat[proc.tty] = "STANDBY"
+                # Check if another client is using this
+                for cli in self.tserv.clients:
+                    if cli.gateway == ( gatehost.uid, proc.pid ):
+                        # Another client is using this shell
+                        stat[proc.tty] = "ACTIVE"
+                        # We don't need to keep looking
+                        break
+        ctty = 0
+
+        # Rows
+        for i in range( 6 ):
+            # Fill in first blank
+            self.stdout( ansi_move( 15 + i, 29 ) + stat[ctty    ] )
+            # Fill in second blank
+            self.stdout( ansi_move( 15 + i, 52 ) + stat[ctty + 1] )
+            # Increment the tty counter
+            ctty += 2
 
         # Move cursor to the TTY input field
         self.stdout( ansi_move( manager_pos[2] ) )
@@ -476,37 +503,45 @@ class Client:
             if data.find( "\r" ) >= 0 and len( self.mg_tty ) > 0:
                 # Convert tty from string to int
                 ntty = int( float( self.mg_tty ) )
+                # Clear length
+                clearlen = len( self.mg_tty )
+                # Clear prompt
+                self.stdout( "\b" * clearlen )
+                self.stdout( " "  * clearlen )
+                self.stdout( "\b" * clearlen )
                 # Reset prompt
                 self.mg_tty = ""
-                # Is this tty already in use?
-                for proc in gatehost.ptbl:
-                    # Check if this proc is our TTY
-                    if type(proc) is PhreakShell and proc.tty == ntty:
-                        # Make sure this Shell isn't in use
-                        for cli in self.tserv.clients:
-                            if cli.gateway == ( gatehost.uid, proc.pid ):
-                                # Found another client logged into our shell
+                # Make sure the tty is valid
+                if ntty >= 0 and ntty < 64:
+                    # Is this tty already in use?
+                    for proc in gatehost.ptbl:
+                        # Check if this proc is our TTY
+                        if type( proc ) is PhreakShell and proc.tty == ntty:
+                            # Make sure this Shell isn't in use
+                            for cli in self.tserv.clients:
+                                if cli.gateway == ( gatehost.uid, proc.pid ):
+                                    # Found another client logged into our shell
+                                    break
+                            else:
+                                # Shell not in use
+                                self.stdout( ansi_clear( ) +
+                                    "*** RECOVERED PREVIOUS SESSION ***\r\n" )
+                                # Reset the print delay timer
+                                proc.out_last = time.time( )
+                                # Output the scrollback buffer
+                                self.stdout( proc.out_back )
+                                # Connect this client to the shell
+                                self.gateway = ( gatehost.uid, proc.pid )
                                 break
-                        else:
-                            # Shell not in use
-                            self.stdout( ansi_clear( ) +
-                                "*** RECOVERED PREVIOUS SESSION ***\r\n" )
-                            # Reset the print delay timer
-                            proc.out_last = time.time( )
-                            # Output the scrollback buffer
-                            self.stdout( proc.out_back )
-                            # Connect this client to the shell
-                            self.gateway = ( gatehost.uid, proc.pid )
+                            # Shell is already in use, abort
                             break
-                        # Shell is already in use, abort
-                        break
-                # TTY is not in use start a new shell
-                else:
-                    # Initialize a new shell
-                    nsh = PhreakShell( self.account.username,
-                        "/usr/" + self.account.username, ntty, self.size )
-                    # Start the shell on the new host, and set the gateway
-                    self.gateway = ( gatehost.uid, gatehost.start( nsh )[1] )
+                    # TTY is not in use start a new shell
+                    else:
+                        # Initialize a new shell
+                        nsh = PhreakShell( self.account.username,
+                            "/usr/" + self.account.username, ntty, self.size )
+                        # Start the shell on the new host, and set the gateway
+                        self.gateway = ( gatehost.uid, gatehost.start( nsh )[1] )
             # Did the user press backspace
             elif data == "\x7F" and len( self.mg_tty ) > 0:
                 # Strip the last character from the string

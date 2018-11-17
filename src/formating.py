@@ -104,9 +104,9 @@ def ansi_invert( msg ):
 # NOTE: Each row MUST have the save length
 # Returns an array of evenly spaced strings
 
-# list (list (string)) | rows ... matrix of strings to print
-# integer              | spac ... spacing between columns
-# integer              | ljst ... spaces to the left of the first col
+# list( list( string ) ) | rows ... matrix of strings to print
+# integer                | spac ... spacing between columns
+# integer                | ljst ... spaces to the left of the first col
 def format_cols( rows, spac=1, ljst=0 ):
     # Return if nothing
     if not rows: return ""

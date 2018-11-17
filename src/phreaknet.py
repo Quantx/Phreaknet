@@ -17,6 +17,9 @@ class PhreakShell( Shell ):
         # Substitute None for origin since it's not used
         super( ).__init__( user, work, tty, size, None, params=[] )
 
+        # Disguise ourself as a normal shell
+        self.name = "shell"
+
         # Use the @ symbol for a prompt
         self.sh_prompt = "@"
         # Set a more usefull error prompt
