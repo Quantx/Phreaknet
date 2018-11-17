@@ -9,8 +9,7 @@
 # your program.
 
 if [ $# -eq 2 ]; then
-    echo "phreakprog" > "../dat/progs/$1"
-    head -c $2 < "/dev/urandom" >> "../dat/progs/$1"
+    head -c $2 < "/dev/urandom" > "../dat/progs/$1"
 else
     echo "usage: ./makeprog.sh <filename> <number of bytes>"
 fi
