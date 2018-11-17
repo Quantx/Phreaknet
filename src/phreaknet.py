@@ -91,11 +91,14 @@ class PhreakSave( Program ):
         self.func = self.kill
 
         # Save everything
-        Account.save( )
+        cnt = Account.save( )
+        self.println( "Saved %s accounts" % cnt )
 
-        Company.save( )
+        cnt = Company.save( )
+        self.println( "Saved %s companies" % cnt )
 
-        Host.save( )
+        cnt = Host.save( )
+        self.println( "Saved %s hosts" % cnt )
 
         # We're done here
         return self.kill

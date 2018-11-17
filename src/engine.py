@@ -27,13 +27,11 @@ def main( ):
             os.makedirs( pdir )
 
     # Load all accounts from disk
-    cnt = Account.load( )
-    if cnt: xlog( "Loaded %s accounts" % cnt )
+    Account.load( )
     # Load all NPCs from disk
     Person.load( )
     # Load all Companies from disk
-    cnt = Company.load( )
-    if cnt: xlog( "Loaded %s companies" % cnt )
+    Company.load( )
 
     # Generate all the companies
     Company.generate_companies( )

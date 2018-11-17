@@ -29,6 +29,8 @@ class Account:
                 pickle.dump( act, fd )
             # Increase the cound
             acnt += 1
+        # Log the action
+        if acnt: xlog( "Saved %s accounts" % acnt )
         # Return the count
         return acnt
 
@@ -48,6 +50,8 @@ class Account:
                     Account.accounts.append( pickle.load( fd ) )
                 # Increase the count
                 acnt += 1
+        # Log the action
+        if acnt: xlog( "Loaded %s accounts" % acnt )
         # Return the count
         return acnt
 

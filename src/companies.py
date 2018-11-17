@@ -57,7 +57,7 @@ class Company:
                     # Add 1 to the count
                     ccnt += 1
                 # Debug
-                xlog( "Created %s %s companies" % ( ccnt, ctype ) )
+                if ccnt: xlog( "Created %s %s companies" % ( ccnt, ctype ) )
 
     # Get a random company
     @classmethod
@@ -89,6 +89,8 @@ class Company:
                 pickle.dump( cmp, fd )
             # Increase the count
             ccnt += 1
+        # Log the action
+        if ccnt: xlog( "Saved %s companies" % ccnt )
         # Return the count
         return ccnt
 
@@ -108,6 +110,8 @@ class Company:
                     Company.companies.append( pickle.load( fd ) )
                 # Increase the count
                 ccnt += 1
+        # Log the action
+        if ccnt: xlog( "Loaded %s companies" % ccnt )
         # Return the count
         return ccnt
 

@@ -78,6 +78,8 @@ class Host:
                 pickle.dump( hst, fd )
             # Add to the count
             hcnt += 1
+        # Log the action
+        if hcnt: xlog( "Saved %s hosts" % hcnt )
         # Return the count
         return hcnt
 
@@ -97,6 +99,8 @@ class Host:
                     Host.hosts.append( pickle.load( fd ) )
                 # Add to the count
                 hcnt += 1
+        # Log the action
+        if hcnt: xlog( "Loaded %s hosts" % hcnt )
         # Return the count
         return hcnt
 
