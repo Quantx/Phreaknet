@@ -27,11 +27,13 @@ def main( ):
             os.makedirs( pdir )
 
     # Load all accounts from disk
-    Account.load( )
+    cnt = Account.load( )
+    if cnt: xlog( "Loaded %s accounts" % cnt )
     # Load all NPCs from disk
     Person.load( )
     # Load all Companies from disk
-    Company.load( )
+    cnt = Company.load( )
+    if cnt: xlog( "Loaded %s companies" % cnt )
 
     # Generate all the companies
     Company.generate_companies( )
@@ -40,7 +42,8 @@ def main( ):
     Program.build_progtbl( )
 
     # Load all hosts from disk
-    Host.load( )
+    cnt = Host.load( )
+    if cnt: xlog( "Loaded %s hosts" % cnt )
 
     # Init stuff here
     # Start the client server

@@ -76,3 +76,26 @@ class PhreakShell( Shell ):
 
         # Return the command shell
         return self.run
+
+# Save the PhreakNET game database
+class PhreakSave( Program ):
+
+    def run( self ):
+        # Only admins can run this
+        acct = Account.find_account( self.user )
+        if acct is None or not acct.is_admin( ):
+            self.error( "access restricted to PhreakDEVs" )
+            return self.kill
+
+        # Set this in advance so that we don't save twice
+        self.func = self.kill
+
+        # Save everything
+        Account.save( )
+
+        Company.save( )
+
+        Host.save( )
+
+        # We're done here
+        return self.kill

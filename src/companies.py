@@ -34,28 +34,19 @@ class Company:
     def generate_companies( cls ):
         # Abort unless companies is empty
         if Company.companies: return False
-        # Load ISPs first
-        with open( "dat/companies/isp" ) as fd:
-             # Count the companies
-             ccnt = 0
-             # Iterate through each line of this file
-             for comp in fd.readlines( ):
-                 # Generate the company and store it
-                 Company.companies.append( ISP( comp.strip( ), getCityRandom( 3 ) ) )
-                 # Add 1 to the count
-                 ccnt += 1
-             # Debug
-             xlog( "Created %s isp companies" % ccnt )
+
+        # Get a list of all subclasses
+        comps = cls.__subclasses__( )
+        # Ensure ISPs are handled first
+        comps.insert(0, comps.pop( comps.index( ISP ) ) )
 
         # List through all our child classes
-        for sub in cls.__subclasses__( ):
+        for sub in comps:
             # Get the type of company
             ctype = sub.__name__.lower( )
-            # Already did ISPs skip this
-            if ctype == "isp": continue
             # Is this an abstract company?
             if not os.path.isfile( "dat/companies/" + ctype ): continue
-            # Load this company's data file
+            # Read this company's data file
             with open( "dat/companies/" + ctype ) as fd:
                 # Count the companies
                 ccnt = 0
@@ -86,18 +77,39 @@ class Company:
         # Return that company
         return output[i]
 
-    # Load all accounts from disk
+    # Save all companies to disk
+    @staticmethod
+    def save( ):
+        # Save a count
+        ccnt = 0
+        # Iterate through all companies
+        for cmp in Company.companies:
+            # Save company to disk
+            with open( 'cmp/%s.cmp' % cmp.uid, 'wb+' ) as fd:
+                pickle.dump( cmp, fd )
+            # Increase the count
+            ccnt += 1
+        # Return the count
+        return ccnt
+
+    # Load all companies from disk
     @staticmethod
     def load( ):
         # Abort unless companies is empty
-        if Company.companies: return False
+        if Company.companies: return 0
+        # Keep a count
+        ccnt = 0
         # Get all files in the hst directory
         cmps = next( os.walk( 'cmp' ) )[2]
         # Load each file
         for cmp in cmps:
             if cmp.endswith( '.cmp' ):
-                with open( 'cmp/' + cmp, 'rb' ) as f:
-                    Company.companies.append( pickle.load( f ) )
+                with open( 'cmp/' + cmp, 'rb' ) as fd:
+                    Company.companies.append( pickle.load( fd ) )
+                # Increase the count
+                ccnt += 1
+        # Return the count
+        return ccnt
 
     def __init__( self, name, geoloc=None ):
         # Generate a unique id for the company

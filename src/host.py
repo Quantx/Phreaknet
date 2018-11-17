@@ -20,6 +20,7 @@ host_progs = [
     "shell",
     "echo",
     "ps",
+    "phreaksave",
     "worldmap",
     "ls",
     "kill",
@@ -65,19 +66,39 @@ class Host:
         # No host matches this ID
         return None
 
+    # Save all hosts to disk
+    @staticmethod
+    def save( ):
+        # Keep a count
+        hcnt = 0
+        # Interate through all hosts
+        for hst in Host.hosts:
+            # Save this host into it's file
+            with open( 'hst/%s.hst' % hst.uid, 'wb+' ) as fd:
+                pickle.dump( hst, fd )
+            # Add to the count
+            hcnt += 1
+        # Return the count
+        return hcnt
+
     # Load all hosts from disk
     @staticmethod
     def load( ):
         # Abort unless hosts is empty
-        if Host.hosts: return False
+        if Host.hosts: return 0
+        # Keep a count
+        hcnt = 0
         # Get all files in the hst directory
         hsts = next( os.walk( 'hst' ) )[2]
         # Load each file
         for hst in hsts:
             if hst.endswith( '.hst' ):
-                with open( 'hst/' + hst, 'rb' ) as f:
-                    Account.accounts.append( pickle.load( f ) )
-        return True
+                with open( 'hst/' + hst, 'rb' ) as fd:
+                    Host.hosts.append( pickle.load( fd ) )
+                # Add to the count
+                hcnt += 1
+        # Return the count
+        return hcnt
 
     # Check if a dca address is valid
     @staticmethod
@@ -192,11 +213,6 @@ class Host:
 
         # Add this host to the master host array
         Host.hosts.append( self )
-
-    # Serialize this host and save it to disk
-    def save( self ):
-        with open( 'hst/%s.hst' + self.hostname, 'wb+' ) as f:
-            pickle.dump( self, f )
 
     # Get the (latitude, longitude) of this host
     def get_location( self ):

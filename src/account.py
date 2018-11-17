@@ -18,18 +18,38 @@ class Account:
 
     accounts = []
 
+    # Serialize all accounts and save them to disk
+    @staticmethod
+    def save( ):
+        # Keep a count
+        acnt = 0
+        # Iterate through all accounts
+        for act in Account.accounts:
+            with open( 'usr/%s.usr' % act.username, 'wb+' ) as fd:
+                pickle.dump( act, fd )
+            # Increase the cound
+            acnt += 1
+        # Return the count
+        return acnt
+
+    # Load all acounts
     @staticmethod
     def load( ):
         # Abort unless accounts is empty
-        if Account.accounts: return False
+        if Account.accounts: return 0
+        # Keep a count
+        acnt = 0
         # Get all files in the usr/ directory
         usrs = next( os.walk( 'usr' ) )[2]
         # Load each file
         for usr in usrs:
             if usr.endswith( '.usr' ):
-                with open( 'usr/' + usr, 'rb' ) as f:
-                    Account.accounts.append( pickle.load( f ) )
-        return True
+                with open( 'usr/' + usr, 'rb' ) as fd:
+                    Account.accounts.append( pickle.load( fd ) )
+                # Increase the count
+                acnt += 1
+        # Return the count
+        return acnt
 
     # Returns the account with the specified username
     # Returns none if no such account exists
@@ -55,11 +75,6 @@ class Account:
 
         # Add us to the list of accounts
         Account.accounts.append( self )
-
-    # Serialize this account and save it to disk
-    def save( self ):
-        with open( 'usr/%s.usr' + self.username, 'wb+' ) as f:
-            pickle.dump( self, f )
 
     # Set a new password for this account
     # Returns if successful

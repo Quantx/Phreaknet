@@ -808,6 +808,7 @@ class Hostname( Program ):
             # Make sure account exists and account is Admin
             if acct is not None and acct.is_admin( ):
                 self.println( self.host.uid )
+                self.println( str( sys.getrefcount( self.host ) ) )
 
          # Terminate ourselves
         return self.kill
@@ -819,7 +820,10 @@ class Kill( Program ):
         # Did the user specify a PID?
         if self.params:
             # Convert the input to an integer
-            cpid = int( float( self.params[0] ) )
+            try:
+                cpid = int( float( self.params[0] ) )
+            except ValueError as e:
+                raise PhreaknetValueError( "not a number: '%s'" % self.params[0] )
             # Make sure this PID is 2 bytes
             if cpid < 0 or cpid > 65535:
                 raise PhreaknetValueError( "arguments must be process or job IDs" )
