@@ -15,6 +15,7 @@ import time
 
 # Log a server action
 def xlog( msg ):
+    # Need a weird import thing to get his to work
     from networking import Server
     from host import Host
 

@@ -12,7 +12,7 @@
 # http://download.maxmind.com/download/worldcities/worldcitiespop.txt.gz
 # NOTE: Make sure this file is in ascii encoding!
 # If 'file -i worldcitiespop.txt' returns 'iso-8859-1' then you need to run:
-# iconv -c -f "iso-8859-1" -t "us-ascii" -t "us-ascii" worldcitiespop.txt -o worldcitiespop.out
+# iconv -c -f "iso-8859-1" -t "us-ascii" worldcitiespop.txt -o worldcitiespop.out
 # This command converts worldcitiespop.txt to ASCII then simply rename the output file
 
 import sys
