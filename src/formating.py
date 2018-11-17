@@ -15,33 +15,37 @@ import time
 
 # Log a server action
 def xlog( msg ):
+    from networking import Server
+    from host import Host
+
     # Date/Time (24 hour) format: [MM/DD/YYYY|HH:MM:SS]
     out = time.strftime( "[%m/%d/%Y|%H:%M:%S]" )
 
     # Was a Client object specified?
-    if cur_client is not None:
+    if Server.cur_client is not None:
         # Assume this user isn't logged in
         username = "Guest"
         # Find this user's associated account
-        if cli.account is not None:
-            username = cli.account.username
+        if Server.cur_client.account is not None:
+            username = Server.cur_client.account.username
         # Append to output
-        out += "[" + cli.ip + ":" + str( cli.port ) + "|" + username + "]"
+        out += "[" + Server.cur_client.ip + ":" + str( Server.cur_client.port ) + "|" + username + "]"
     # Was a host specified?
-    if cur_host is not None:
+    if Host.cur_host is not None:
        # Add the hostname
-       out += "[" + hst.hostname
-       # Add the IP
-       if self.dca: out += "|" + hst.dca
+       out += "[" + Host.cur_host.hostname
+       # Add the DCA
+       if Host.cur_host.dca: out += "|" + Host.cur_host.dca
        # Add the Phone number
-       if self.phone: out += "|" + hst.phone
+       if Host.cur_host.phone: out += "|" + Host.cur_host.phone
        # Add the closing bracket
        out += "]"
 
-    # Add the msg to the output
-    out += msg + "\r\n"
+    # Add the message
+    out += msg
+
     # Print the output
-    sys.stdout.write( ansi_clear_line( ) + out )
+    sys.stdout.write( ansi_clear_line( ) + out + "\r\n" )
 
 # Convert an integer (in seconds) into HH:MM:SS format
 def time_hms( tm ):

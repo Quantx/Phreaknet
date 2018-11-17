@@ -41,7 +41,7 @@ class Company:
              # Iterate through each line of this file
              for comp in fd.readlines( ):
                  # Generate the company and store it
-                 Company.companies.append( ISP( comp, getCityRandom( 3 ) ) )
+                 Company.companies.append( ISP( comp.strip( ), getCityRandom( 3 ) ) )
                  # Add 1 to the count
                  ccnt += 1
              # Debug
@@ -62,7 +62,7 @@ class Company:
                 # Iterate through each line of this file
                 for comp in fd.readlines( ):
                     # Generate the company and store it
-                    Company.companies.append( sub( comp, getCityRandom( ) ) )
+                    Company.companies.append( sub( comp.strip( ), getCityRandom( ) ) )
                     # Add 1 to the count
                     ccnt += 1
                 # Debug
@@ -116,13 +116,22 @@ class Company:
         # Store this company's ip
         self.isp = ""
         # Store this company's router
+        rout = None
         # Check if we need an ISP class router
         if type( self ) is ISP:
-            self.router = ISPRouter( self.name, self.geoloc ).uid
+            # We're an ISP
+            rout = ISPRouter( self.name, self.geoloc )
         else:
+            # We're not an ISP so we need to subscribe to one
             self.isp = ISP.random_company( )
+            # Get that ISP's router
             routerid = Company.find_id( self.isp ).router
-            self.router = Router( self.name, self.geoloc, routerid ).uid
+            # Create our router
+            rout = Router( self.name, self.geoloc, routerid )
+        # Store this router's id
+        self.router = rout.uid
+        # Boot the router
+        rout.startup( )
 
     # Add a new host to this company, returns host id
     def add_host( self, hostname ):

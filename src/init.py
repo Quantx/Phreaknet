@@ -10,11 +10,6 @@
 ###    IMPORT INIT IN ALL FILES    ###
 #####                            #####
 
-global cur_client;
-cur_client = None
-global cur_host;
-cur_host = None
-
 from formating import *
 from exceptions import *
 from account import *
