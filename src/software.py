@@ -1022,10 +1022,32 @@ class Cat( Program ):
 class CP( Program ):
 
     def run( self ):
-        pass
+        # Did we get a source and dest
+        if len( self.params ) == 2:
+            # Calc src path
+            srcpath = self.respath( self.params[0] )
+            # Calc dest path
+            destpath = self.respath( self.params[1] )
+            # Copy the file
+            self.host.copy_file( srcpath, self.user, destpath )
+        else:
+            self.error( "usage: cp <source> <destination>" )
+        # We're done
+        return self.kill
 
 # Move a file to another location
 class MV( Program ):
 
     def run( self ):
-        pass
+        # Did we get a source and dest
+        if len( self.params ) == 2:
+            # Calc src path
+            srcpath = self.respath( self.params[0] )
+            # Calc dest path
+            destpath = self.respath( self.params[1] )
+            # Copy the file
+            self.host.move_file( srcpath, self.user, destpath )
+        else:
+            self.error( "usage: mv <source> <destination>" )
+        # We're done
+        return self.kill
