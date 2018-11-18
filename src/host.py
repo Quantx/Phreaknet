@@ -152,7 +152,7 @@ class Host:
         # Phone number of the host, "" = no landline
         self.phone = ""
         # Is this booted and running?
-        self.online = False
+        self.poweron = False
         # Booting into safemode disables network and dialup
         self.safemode = False
         # Stores the hardware specs for this machine
@@ -269,7 +269,7 @@ class Host:
     # Returns None if no PID is found
     def get_pid( self, pid ):
         # Return none if we're offline
-        if not self.online: return None
+        if not self.poweron: return None
         # Iterate through process table
         for p in self.ptbl:
             if p.pid == pid:
@@ -341,7 +341,7 @@ class Host:
     # Processes and Programs should use this as much as possible
     def resolve( self, dca ):
         # Can't do anything if we're offline
-        if not self.online: return None
+        if not self.poweron: return None
         # Check if the DCA is valid
         if not Host.validate_dca( dca ): return None
         # Is this the loopback DCA?
@@ -440,9 +440,9 @@ class Host:
     # Startup this host
     def startup( self, safemode=False ):
         # Can't startup if we're already online
-        if not self.online:
+        if not self.poweron:
             # Mark this host as online
-            self.online = True
+            self.poweron = True
             # Reset npid and ntty
             self.npid = 0
             self.ntty = 64
@@ -460,9 +460,9 @@ class Host:
     # Shutdown this host
     def shutdown( self, reboot=False ):
         # Can't shutdown if we're already offline
-        if self.online:
+        if self.poweron:
             # Mark this host as offline
-            self.online = False
+            self.poweron = False
             # Terminate all processes
             for prc in self.ptbl: self.kill( prc.pid, "root" )
 
@@ -1027,7 +1027,7 @@ class Router( Host ):
     # Processes and Programs should use this as much as possible
     def resolve( self, dca ):
         # Can't do anything if we're offline
-        if not self.online: return None
+        if not self.poweron: return None
         # Check if the DCA is valid
         if not Host.validate_dca( dca ): return None
         # Is this the loopback dca?
@@ -1041,7 +1041,7 @@ class Router( Host ):
             # Since this is local, just resolve the netstat
             dhost = Host.find_id( self.netstat.get( dca, None ) )
             # Don't resolve host that is offline
-            if not dhost.online: return None
+            if not dhost.poweron: return None
             # Don't resolve host that is in safemode
             if dhost.safemode: return None
             # We're good
@@ -1058,7 +1058,7 @@ class Router( Host ):
     # Request an DCA address from this router
     def request_dca( self, uid ):
         # Can't do anything if we're offline
-        if not self.online: return ""
+        if not self.poweron: return ""
         # We don't have an address
         if not self.dca: return ""
         # Loop until a free DCA is found
@@ -1138,7 +1138,7 @@ class ISPRouter( Router ):
 
     def resolve( self, dca ):
         # Can't do anything if we're offline
-        if not self.online: return None
+        if not self.poweron: return None
         # Check if the DCA is valid
         if not Host.validate_dca( dca ): return None
         # Is this the loopback dca?
@@ -1158,7 +1158,7 @@ class ISPRouter( Router ):
                 # We're looking for a router
                 dhost = Host.find_id( self.routetbl.get( dca, None ) )
             # Don't resolve host that is offline
-            if not dhost.online: return None
+            if not dhost.poweron: return None
             # Don't resolve host that is in safemode
             if dhost.safemode: return None
             # We're good
@@ -1171,7 +1171,7 @@ class ISPRouter( Router ):
     # Generate a router class DCA
     def request_router_dca( self, uid ):
         # Can't do anything if we're offline
-        if not self.online: return ""
+        if not self.poweron: return ""
         # We don't have an address
         if not self.dca: return ""
         # Loop until a free DCA is found
@@ -1196,7 +1196,7 @@ class ISPRouter( Router ):
     # Request an DCA address from this router
     def request_dca( self, uid ):
         # Can't do anything if we're offline
-        if not self.online: return ""
+        if not self.poweron: return ""
         # We don't have an address
         if not self.dca: return ""
         # Loop until a free DCA is found

@@ -406,7 +406,7 @@ class Client:
                                     # Print the banner for buying a gateway
                                     self.print_banner( legal_banner, legal_pos )
                                 # Is this gateway online
-                                elif gatehost.online:
+                                elif gatehost.poweron:
                                     # Print the gateway manager banner
                                     self.manager_banner( gatehost )
                                 # Gateway offline
@@ -498,7 +498,7 @@ class Client:
                 # Print the system boot banner
                 self.print_banner( boot_banner, boot_pos )
         # If the gateway is online, pick a TTY
-        elif gatehost.online:
+        elif gatehost.poweron:
             # Did the user hit enter?
             if data.find( "\r" ) >= 0 and len( self.mg_tty ) > 0:
                 # Convert tty from string to int
@@ -581,7 +581,7 @@ class Client:
                 if gatehost is None:
                     self.print_banner( legal_banner, legal_pos )
                 # The gateway is still online
-                elif gatehost.online:
+                elif gatehost.poweron:
                     self.manager_banner( gatehost )
                 # The gateway is offline
                 else:
