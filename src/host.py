@@ -31,6 +31,8 @@ host_progs = [
     "more",
     "mkdir",
     "rm",
+    "cp",
+    "mv",
     "adduser",
     "deluser",
     "addgroup",
@@ -683,6 +685,45 @@ class Host:
     def append_file( self, path, user, data ):
         # Call the write function with append mode
         return self.write_file( path, user, data, True )
+
+    # Copy a file or directory
+    def copy_file( self, path, user, dest ):
+        # Fix source path
+        path = self.respath( path )
+        # Fix destination path
+        dest = self.respath( dest )
+        # Make sure we can read the dest file
+        if not self.path_priv( path, user, 0 ):
+            raise PhreaknetOSError( "Permission denied" )
+        # Make sure we can write the dest file's parent directory
+        if not self.path_priv( os.path.dirname( dest ), user, 1 ):
+            raise PhreaknetOSError( "Permission denied" )
+        # Is this a file or a directory?
+        if os.path.isfile( path ):
+            # Copy the file
+            shutil.copy2( path, dest )
+        elif os.path.isdir( path ):
+            # Copy the directory
+            shutil.copytree( path, dest )
+        # Copy the inode file
+        shutil.copy2( self.get_inode( path ), self.get_inode( dest ) )
+
+    # Move a file or directory
+    def move_file( self, path, user, dest ):
+        # Fix source path
+        path = self.respath( path )
+        # Fix destination path
+        dest = self.respath( dest )
+        # Make sure we can read the dest file
+        if not self.path_priv( path, user, 0 ):
+            raise PhreaknetOSError( "Permission denied" )
+        # Make sure we can write the dest file's parent directory
+        if not self.path_priv( os.path.dirname( dest ), user, 1 ):
+            raise PhreaknetOSError( "Permission denied" )
+        # Move the file
+        shutil.move( path, dest )
+        # Move the inode file
+        shutil.move( self.get_inode( path ), self.get_inode( dest ) )
 
     # Make a directory
     def make_dir( self, path, user ):

@@ -78,7 +78,7 @@ class Porthack( Program ):
         try:
            port = int( float( self.rl_line ) )
            # Is this a valid port?
-           if port < 0 or port > 65535: raise ValueError( "Out of range" )
+           if port < 0 or port >= 65535: raise ValueError( "Out of range" )
         except ValueError:
            self.error( "bad port" )
            return self.listhost
