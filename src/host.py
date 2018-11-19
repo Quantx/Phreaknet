@@ -1104,6 +1104,16 @@ class Router( Host ):
         if not self.poweron: return ""
         # We don't have an address
         if not self.dca: return ""
+
+        # Store the host's previous dca
+        odca = ""
+        for cdca in self.netstat:
+            # Is this the right DCA?
+            if self.netstat[cdca] == uid:
+                # We're done
+                odca = cdca
+                break
+
         # Loop until a free DCA is found
         for _ in range( 65535 ):
             # Increment self.ndca from last time
@@ -1114,6 +1124,8 @@ class Router( Host ):
             dca = self.dca[:-1] + str( self.ndca )
             # Make sure this DCA is free
             if dca in self.netstat: continue
+            # Delete the old dca
+            if odca: del self.netstat[odca]
             # Store the DCA and uid
             self.netstat[dca] = uid
 
@@ -1217,6 +1229,16 @@ class ISPRouter( Router ):
         if not self.poweron: return ""
         # We don't have an address
         if not self.dca: return ""
+
+        # Store the host's previous dca
+        odca = ""
+        for cdca in self.netstat:
+            # Is this the right DCA?
+            if self.netstat[cdca] == uid:
+                # We're done
+                odca = cdca
+                break
+
         # Loop until a free DCA is found
         for _ in range( 65535 ):
             # Increment self.nrdca from last time
@@ -1227,33 +1249,10 @@ class ISPRouter( Router ):
             dca = self.dca[:-3] + str( self.nrdca ) + ".0"
             # Make sure this DCA is free
             if dca in self.routetbl: continue
+            # Delete the old dca
+            if odca: self.routebl[odca]
             # Store the DCA and uid
             self.routetbl[dca] = uid
-
-            # DCA is not in use, return it
-            return dca
-
-        # No DCAs available
-        return ""
-
-    # Request an DCA address from this router
-    def request_dca( self, uid ):
-        # Can't do anything if we're offline
-        if not self.poweron: return ""
-        # We don't have an address
-        if not self.dca: return ""
-        # Loop until a free DCA is found
-        for _ in range( 65535 ):
-            # Increment self.ndca from last time
-            self.ndca += 1
-            # Make sure self.ndca isn't greater than 65535
-            if self.ndca >= 65535: self.ndca = 1
-            # Concatenate the DCA
-            dca = self.dca[:-1] + str( self.ndca )
-            # Make sure this DCA is free
-            if dca in self.netstat: continue
-            # Store the DCA and uid
-            self.netstat[dca] = uid
 
             # DCA is not in use, return it
             return dca
