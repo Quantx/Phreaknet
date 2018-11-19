@@ -39,8 +39,8 @@ class Program:
                 sub.checksum = md5_check( fname )
                 # Add this program to the table
                 Program.progtbl.append( sub )
-                # Iterate through this program's subclasses
-                sub.build_progtbl( )
+            # Iterate through this program's subclasses
+            sub.build_progtbl( )
 
     # Get a program by name
     @staticmethod
@@ -461,9 +461,9 @@ def md5_check( path ):
 # Extend this to implement unique shells
 class Shell( Program ):
 
-    def __init__( self, user, work, tty, size, origin, params=[] ):
-        # Pass parent args along
-        super( ).__init__( user, work, tty, size, origin, params )
+    def __init__( self, *args, **kwargs ):
+        # Call super
+        super( ).__init__( *args, **kwargs )
 
         # The default prompt for the command line
         self.sh_prompt = ">"
@@ -471,8 +471,6 @@ class Shell( Program ):
         self.sh_error = "unknown command"
         # Stores arguments for commands
         self.sh_args = []
-        # Are we root for this command?
-        self.sh_sudo = False
 
         # Default command table stores internal commands
         # function | fn   ... function to be run by this command
@@ -484,16 +482,72 @@ class Shell( Program ):
         self.sh_ctbl = {
             "help"  : { "fn" : self.help,  "help" : "help [command]||print this list or info on a specific command", },
             "exit"  : { "fn" : self.kill,  "help" : "exit||terminate connection to this system", },
-            "cd"    : { "fn" : self.cdir,  "help" : "cd [path]||change the working directory", },
-            "pwd"   : { "fn" : self.pwd,   "help" : "pwd||print the current working directory", },
             "clear" : { "fn" : self.clear, "help" : "clear||clear the terminal screen", },
-            "run"   : { "fn" : self.rprog, "help" : "run <file> [params]||execute a file with args", },
-            "sudo"  : { "fn" : None,       "help" : "sudo <command>||execute a command with root privileges", },
         }
 
     # The call to start the command processor
     def run( self ):
         return self.readline( self.shell_resolve, self.sh_prompt )
+
+    # Resolve the command line input
+    def shell_resolve( self ):
+        # Split the readline input
+        self.sh_args = self.rl_line.split( )
+        # Confirm that there's actually text here
+        if self.sh_args:
+            # Extract the command from the string
+            cmd = self.sh_args.pop( 0 )
+            # Resolve the command line input
+            if cmd in self.sh_ctbl:
+                # Command was an internal command
+                return self.sh_ctbl[cmd]["fn"]
+            else:
+                self.error( self.sh_error )
+
+        return self.run
+
+    # Print the help screen
+    def help( self ):
+        # The pager file
+        out = []
+        # Iterate through the command table
+        for cmd in self.sh_ctbl:
+            # Split the command from the help message
+            hlp = self.sh_ctbl[cmd]["help"].split( "||" )
+            # Calculate the correct number of tabs
+            tabs = "\t" * int(max( 4 - len( hlp[0] ) / 8, 0 ))
+            # Add the help for this command to the output
+            out.append( hlp[0] + tabs + hlp[1] )
+
+        return self.pager( out, self.run )
+
+    # Clear the terminal screen
+    def clear( self ):
+        self.printl( ansi_clear( ) )
+        return self.run
+
+class Qash( Shell ):
+
+    def __init__( self, *args, **kwargs ):
+        # Call super
+        super( ).__init__( *args, **kwargs )
+
+        # Are we root for this command?
+        self.sh_sudo = False
+
+        # Default command table stores internal commands
+        # function | fn   ... function to be run by this command
+        # string   | help ... Message to display in the help menu
+        #
+        # Usage:
+        #
+        # "myCmd" : { fn : myCmdFnc, priv : <0-2>, help : "How 2 Use" },
+        self.sh_ctbl.update({
+            "cd"    : { "fn" : self.cdir,  "help" : "cd [path]||change the working directory", },
+            "pwd"   : { "fn" : self.pwd,   "help" : "pwd||print the current working directory", },
+            "run"   : { "fn" : self.rprog, "help" : "run <file> [params]||execute a file with args", },
+            "sudo"  : { "help" : "sudo <command>||execute a command with root privileges", },
+        })
 
     # Resolve the command line input
     def shell_resolve( self ):
@@ -557,23 +611,6 @@ class Shell( Program ):
 
         return self.run
 
-    # Print the help screen
-    def help( self ):
-        # The pager file
-        out = []
-        # Iterate through the command table
-        for cmd in self.sh_ctbl:
-            # Split the command from the help message
-            hlp = self.sh_ctbl[cmd]["help"].split( "||" )
-            # Calculate the correct number of tabs
-            tabs = "\t" * int(max( 4 - len( hlp[0] ) / 8, 0 ))
-            # Add the help for this command to the output
-            out.append( hlp[0] + tabs + hlp[1] )
-
-        out.append( "For more help, try the man program" )
-
-        return self.pager( out, self.run )
-
     # Alter the current working directory
     def cdir( self ):
         if self.sh_args:
@@ -609,11 +646,6 @@ class Shell( Program ):
     # Print the current working directory
     def pwd( self ):
         self.println( self.cwd )
-        return self.run
-
-    # Clear the terminal screen
-    def clear( self ):
-        self.printl( ansi_clear( ) )
         return self.run
 
     # Run a program at the path

@@ -11,7 +11,7 @@ from init import *
 # This is a special shell, used on Phreaknet gateways
 # It bridges the I/O of clients with the I/O of programs
 # DO NOT use this shell on any host except Phreaknet gateways
-class PhreakShell( Shell ):
+class PhreakShell( Qash ):
 
     def __init__( self, user, work, tty, size, params=[] ):
         # Substitute None for origin since it's not used
@@ -67,6 +67,23 @@ class PhreakShell( Shell ):
             self.out_timer = time.time( )
             return ""
 
+    # Print a more useful help screen
+    def help( self ):
+        # The pager file
+        out = []
+        # Iterate through the command table
+        for cmd in self.sh_ctbl:
+            # Split the command from the help message
+            hlp = self.sh_ctbl[cmd]["help"].split( "||" )
+            # Calculate the correct number of tabs
+            tabs = "\t" * int(max( 4 - len( hlp[0] ) / 8, 0 ))
+            # Add the help for this command to the output
+            out.append( hlp[0] + tabs + hlp[1] )
+        # Add this message
+        out.append( "For more help, try the man program" )
+
+        return self.pager( out, self.run )
+
     # The intro to play when connecting to the gateway
     def gateway_intro( self ):
         self.printl( ansi_clear( ) )
@@ -80,28 +97,48 @@ class PhreakShell( Shell ):
         # Return the command shell
         return self.run
 
-# Save the PhreakNET game database
-class PhreakSave( Program ):
+# An admin control shell for PhreakNET
+class PhreakAdmin( Shell ):
 
+    def __init__( self, *args, **kwargs ):
+        # Call super
+        super( ).__init__( *args, **kwargs )
+
+        # Disguise ourself as a normal shell
+        self.name = "shell"
+
+        # Use the @ symbol for a prompt
+        self.sh_prompt = "admin shell>"
+
+        # Overwrite the cmd table
+        self.sh_ctbl.update({
+            "savedb" : { "fn" : self.savedb, "help" : "savedb||save the PhreakNET database", },
+        })
+
+    # Check if we're a valid admin
     def run( self ):
         # Only admins can run this
         acct = Account.find_account( self.user )
         if acct is None or not acct.is_admin( ):
             self.error( "access restricted to PhreakDEVs" )
             return self.kill
+        # Start the shell
+        return self.readline( self.shell_resolve, self.sh_prompt )
 
+    # Save the PhreakNET database
+    def savedb( self ):
         # Set this in advance so that we don't save twice
-        self.func = self.kill
+        self.func = self.run
 
-        # Save everything
+        # Save accounts
         cnt = Account.save( )
         self.println( "Saved %s accounts" % cnt )
-
+        # Save companies
         cnt = Company.save( )
         self.println( "Saved %s companies" % cnt )
-
+        # Save hosts
         cnt = Host.save( )
         self.println( "Saved %s hosts" % cnt )
 
         # We're done here
-        return self.kill
+        return self.run

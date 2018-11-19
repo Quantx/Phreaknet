@@ -17,10 +17,10 @@ import uuid
 import traceback
 
 host_progs = [
-    "shell",
+    "qash",
     "echo",
     "ps",
-    "phreaksave",
+    "phreakadmin",
     "worldmap",
     "ls",
     "kill",
@@ -185,7 +185,7 @@ class Host:
         with open( "dir/" + self.uid + "/.usr.inode", "w" ) as fd: fd.write( "rwxrwxr-x root root" )
 
         # Build the passwd file
-        with open( "dir/" + self.uid + "/sys/passwd", "w" ) as fd: fd.write( "root:x:0:0:root:,,,:/usr/root:/bin/shell\n" )
+        with open( "dir/" + self.uid + "/sys/passwd", "w" ) as fd: fd.write( "root:x:0:0:root:,,,:/usr/root:/bin/qash\n" )
         with open( "dir/" + self.uid + "/sys/.passwd.inode", "w" ) as fd: fd.write( "rw-r--r-- root root" )
         # Build the group file
         with open( "dir/" + self.uid + "/sys/group", "w" ) as fd: fd.write( "root:x:0:\nsudo:x:1:\n" )
@@ -421,6 +421,8 @@ class Host:
                         traceback.print_exc( None, fd )
                     # Show the user their error report string
                     proc.error( "phreaknet: a fatal exception has occured, give this code to a PhreakDEV: " + errid )
+                    # log that shit
+                    xlog( "fatal exception, id: " + errid )
                     # Terminate the program
                     proc.func = proc.kill
 
@@ -881,7 +883,7 @@ class Host:
     # Returns true if this user has an account here
     # Passwd file format:
     # username:x:userID:groupID:fingerName,fingerMail,fingerStatus,fingerPlag:homeDir:shellDir
-    # architect:x:1021:1020:John Doe,test@123.123.123.123,PhreakNET Dev,Neat plan bro:/usr/architect:/bin/shell
+    # architect:x:1021:1020:John Doe,test@123.123.123.123,PhreakNET Dev,Neat plan bro:/usr/architect:/bin/qash
     # string or Account | cuser ... The user to check
     # string or Account | user .... The user preforming the check
     def check_user( self, cuser, user ):
@@ -918,7 +920,7 @@ class Host:
     # string | home .... the home directory for this user
     # string | shell ... the default executable for this user
     # Returns true if successfull
-    def add_user( self, nuser, user, home="", shell="/bin/shell" ):
+    def add_user( self, nuser, user, home="", shell="/bin/qash" ):
         # Make sure this account doesn't already exist
         if self.check_user( nuser, user ): return False
         # Make sure this account even exists
