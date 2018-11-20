@@ -492,7 +492,7 @@ class Client:
                 # Give this account root access
                 nhst.join_group( self.account.username, "sudo", "root" )
                 # Log the creation
-                xlog( "Requested a new gateway: " + nhst.hostname + "@" + nhst.dca )
+                xlog( "Requested a new gateway: " + nhst.uid )
                 # Copy the host's UID
                 self.account.gateway = nhst.uid
                 # Print the system boot banner

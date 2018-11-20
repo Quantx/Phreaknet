@@ -148,16 +148,6 @@ class Host:
         self.defgate = defgate
         # An empty string indicates no network connection
         self.dca = ""
-        # Contact the default gateway and request a DCA
-        dhost = Host.find_id( self.defgate )
-        if dhost:
-            tdca = ""
-            if type( self ) is Router:
-                tdca = dhost.request_router_dca( self.uid )
-            else:
-                tdca = dhost.request_dca( self.uid )
-            # Check if dca exists
-            if tdca: self.dca = tdca
         # Stores the hardware specs for this machine
         self.specs = {}
 
@@ -461,6 +451,14 @@ class Host:
             self.start( Systemx( ) )
             # Configure safe mode
             self.safemode = safemode
+            # Contact the default gateway and request a DCA
+            dhost = Host.find_id( self.defgate )
+            if type( self ) is ISPRouter:
+                    self.dca = ISPRouter.isp_request_dca( self.uid )
+            elif dhost and type( self ) is Router:
+                self.dca = dhost.router_request_dca( self.uid )
+            elif dhost:
+                self.dca = dhost.request_dca( self.uid )
             # Reset the active timer
             self.alive = time.time( )
             # Started up successfully
@@ -1202,9 +1200,7 @@ class ISPRouter( Router ):
         # Call super
         super( ).__init__( *args, **kwargs )
         ### Networking ###
-        self.dca = ISPRouter.isp_request_dca( self.uid )
-        # Store all the routers at connected to this ISP
-        # Same format as netstat
+        # Store all the routers at connected to this ISP, same format as netstat
         self.routetbl = {}
         # Next router class DCA
         self.nrdca = 1
@@ -1257,7 +1253,7 @@ class ISPRouter( Router ):
 
     # Don't call this directly
     # Generate a router class DCA
-    def request_router_dca( self, uid ):
+    def router_request_dca( self, uid ):
         # Can't do anything if we're offline
         if not self.poweron: return ""
         # We don't have an address
