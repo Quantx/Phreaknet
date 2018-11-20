@@ -26,6 +26,9 @@ def main( ):
             # Make this directory
             os.makedirs( pdir )
 
+    # Count the types of cities
+    makeCitySizeCount( )
+
     # Build the program table
     cnt = Program.build_progtbl( )
     if cnt: xlog( "Built %s programs" % cnt )
@@ -36,13 +39,11 @@ def main( ):
     Person.load( )
     # Load all Companies from disk
     Company.load( )
+    # Load all hosts from disk
+    Host.load( )
 
     # Generate all the companies
     Company.generate_companies( )
-
-    # Load all hosts from disk
-    cnt = Host.load( )
-    if cnt: xlog( "Loaded %s hosts" % cnt )
 
     # Init stuff here
     # Start the client server

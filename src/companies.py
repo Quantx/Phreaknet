@@ -51,31 +51,25 @@ class Company:
                 # Count the companies
                 ccnt = 0
                 # Iterate through each line of this file
-                for comp in fd.readlines( ):
+                for comp in fd:
                     # Generate the company and store it
                     Company.companies.append( sub( comp.strip( ), getCityRandom( ) ) )
                     # Add 1 to the count
                     ccnt += 1
+                # Store the number of companies generated
+                sub.count = ccnt
                 # Debug
                 if ccnt: xlog( "Created %s %s companies" % ( ccnt, ctype ) )
 
     # Get a random company
     @classmethod
     def random_company( cls ):
-        # Choices list
-        output = []
-        # Iterate through all companies
-        for cmp in Company.companies:
-            # Check if this is the right type of company
-            if isinstance( cmp, cls ):
-                # Add it to the list
-                output.append( cmp.uid )
         # No companies of this type
-        if not output: return ""
+        if not hasattr( cls, "count" ): return ""
         # Get a random company
-        i = random.randint( 0, len( output ) - 1 )
+        i = random.randint( 0, cls.count - 1 )
         # Return that company
-        return output[i]
+        return Company.companies[i].uid
 
     # Save all companies to disk
     @staticmethod
@@ -107,7 +101,15 @@ class Company:
         for cmp in cmps:
             if cmp.endswith( '.cmp' ):
                 with open( 'cmp/' + cmp, 'rb' ) as fd:
-                    Company.companies.append( pickle.load( fd ) )
+                    # Unpack the company
+                    ccls = pickle.load( fd )
+                    # Increase the count
+                    if hasattr( type( ccls ), "count" ):
+                        type( ccls ).count += 1
+                    # Class doesn't have a count yet
+                    else:
+                        type( ccls ).count = 1
+                    Company.companies.append( ccls )
                 # Increase the count
                 ccnt += 1
         # Log the action
