@@ -138,6 +138,12 @@ class Host:
         self.hostname = name
         # The physical location of the host
         self.geoloc = citydata
+        # Phone number of the host, "" = no landline
+        self.phone = ""
+        # Is this booted and running?
+        self.poweron = False
+        # Booting into safemode disables network and dialup
+        self.safemode = False
         # Default gateway for this host (The host ID of this host's Router)
         self.defgate = defgate
         # An empty string indicates no network connection
@@ -152,12 +158,6 @@ class Host:
                 tdca = dhost.request_dca( self.uid )
             # Check if dca exists
             if tdca: self.dca = tdca
-        # Phone number of the host, "" = no landline
-        self.phone = ""
-        # Is this booted and running?
-        self.poweron = False
-        # Booting into safemode disables network and dialup
-        self.safemode = False
         # Stores the hardware specs for this machine
         self.specs = {}
 
@@ -308,6 +308,8 @@ class Host:
     # Start a new proc on this host
     # Returns a tuple ( host, pid ) of the new process or None if it didnt start
     def start( self, proc ):
+        # Can't do shit if we're offline
+        if not self.poweron: return None
         ### Request a free PID ###
         # If no PID was found within self.mpid attempts then self.ptbl is full
         for _ in range( self.mpid ):
@@ -356,7 +358,11 @@ class Host:
         # Grab our default gateway
         dhost = Host.find_id( self.defgate )
         # Make sure this host exists
-        if not dhost: return None
+        if dhost is None: return None
+        # Make sure this host is online
+        if not dhost.poweron: return None
+        # Make sure this host is not in safemode
+        if dhost.safemode: return None
         # Resolve the DCA
         return dhost.resolve( dca )
 
@@ -457,7 +463,7 @@ class Host:
             self.safemode = safemode
             # Reset the active timer
             self.alive = time.time( )
-
+            # Started up successfully
             return True
 
         return False
@@ -470,7 +476,7 @@ class Host:
             self.poweron = False
             # Terminate all processes
             for prc in self.ptbl: self.kill( prc.pid, "root" )
-
+            # Shutdown ok
             return True
 
         return False
@@ -1084,6 +1090,8 @@ class Router( Host ):
         if dca.startswith( self.dca[:-1] ):
             # Since this is local, just resolve the netstat
             dhost = Host.find_id( self.netstat.get( dca, None ) )
+            # Host not found
+            if dhost is None: return None
             # Don't resolve host that is offline
             if not dhost.poweron: return None
             # Don't resolve host that is in safemode
@@ -1095,7 +1103,11 @@ class Router( Host ):
             # Grab our default gateway
             dhost = Host.find_id( self.defgate )
             # Make sure this host exists
-            if not dhost: return None
+            if dhost is None: return None
+            # Make sure this host is powered on
+            if not dhost.poweron: return None
+            # Make sure this host is not in safemode
+            if dhost.safemode: return None
             # Resolve the DCA
             return dhost.resolve( dca )
 
@@ -1152,6 +1164,10 @@ class ISPRouter( Router ):
             if type( h ) is ISPRouter:
                 # Check to see if the ISP partition matches
                 if h.dca.startswith( dcaisp ):
+                    # Check to make sure this host is online
+                    if not h.poweron: return None
+                    # Make sure host is not in safemode
+                    if h.safemode: return None
                     # Have that ISP resolve the DCA
                     return h.resolve( dca )
         # No ISP found with that DCA
@@ -1206,20 +1222,29 @@ class ISPRouter( Router ):
         if dca == self.dca: return self
         # Check if the ISP and Router partitions match
         if dca.startswith( self.dca[:-3] ):
-            dhost = None
             # Is the DCA on this ISPRouter's router domain?
             if dca.startswith( self.dca[:-1] ):
                 # Since this is local, just resolve the netstat
                 dhost = Host.find_id( self.netstat.get( dca, None ) )
+                # Host not found
+                if dhost is None: return None
+                # Don't resolve host that is offline
+                if not dhost.poweron: return None
+                # Don't resolve host that is in safemode
+                if dhost.safemode: return None
+                # We're good, return the host
+                return dhost
             else:
                 # We're looking for a router
-                dhost = Host.find_id( self.routetbl.get( dca, None ) )
-            # Don't resolve host that is offline
-            if not dhost.poweron: return None
-            # Don't resolve host that is in safemode
-            if dhost.safemode: return None
-            # We're good
-            return dhost
+                dhost = Host.find_id( self.routetbl.get( dca[:-1] + "0", None ) )
+                # Host not found
+                if dhost is None: return None
+                # Don't resolve host that is offline
+                if not dhost.poweron: return None
+                # Don't resolve host that is in safemode
+                if dhost.safemode: return None
+                # Have this router continue to resolve the DCA
+                return dhost.resolve( dca )
         else:
             # Check all other ISPs for the DCA
             return ISPRouter.isp_resolve( dca )
@@ -1252,7 +1277,7 @@ class ISPRouter( Router ):
             # Make sure this DCA is free
             if dca in self.routetbl: continue
             # Delete the old dca
-            if odca: self.routebl[odca]
+            if odca: del self.routebl[odca]
             # Store the DCA and uid
             self.routetbl[dca] = uid
 
