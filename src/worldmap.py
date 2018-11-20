@@ -249,6 +249,9 @@ def resolveCountry( code ):
 
 # Get the dict from a row in longer list
 def getCity( city ):
+    # Do we need to split a string?
+    if type( city ) is str:
+        city = city.strip( ).split( "," )
     # Build and return the dictionary
     return {
         # Country code for this city
@@ -273,7 +276,7 @@ def getCityName( country, region, cname ):
     # Read the cities data file
     with open( "dat/worldcitiespop.txt" ) as fd:
         # Iterate over each entry
-        for fline in fd.readlines( ):
+        for fline in fd:
             # Split the data on commas
             city = fline.strip( ).split( "," )
             # Check if the plaintext name matches
@@ -285,34 +288,68 @@ def getCityName( country, region, cname ):
         # City not found
         return None
 
-# Get a random city with a population greater than size
-# Large  City: size =  3 : Infinity > population > 15,000
-# Medium City: size =  2 :   15,000 > population >  5,000
-# Small  City: size =  1 :    5,000 > population >  1,000
-#        Town: size =  0 :    1,000 > population >      0
-#    Any City: size = -1 : Infinity > population >      0
-def getCityRandom( size=-1 ):
-    # Make sure a correct size was given
-    if size < -1 or size > 3: raise IndexError( "invalid city size" )
+# Store a count of any, town, small, medium, and large cities
+citySizeCount = [ 0, 0, 0, 0, 0 ]
+# Populate this list
+def makeCitySizeCount( ):
+    # Use the global scope citySizeCount list
+    global citySizeCount
+    # We already ran this
+    if citySizeCount[0] > 0: return
     # List of population sizes
     psize = [ 0, 1000, 5000, 15000, 999999999 ]
-    # Store all the valid cities
-    clist = []
     # Read the cities data file
     with open( "dat/worldcitiespop.txt" ) as fd:
         # Iterate through each city
         for fline in fd:
             # Split on commas
             city = fline.strip( ).split( "," )
-            # Check if size is irrelivent
-            if size < 0 and city[3]:
-                clist.append( getCity( city ) )
-            # Check if this city has enough people
-            elif ( float( city[3] ) > psize[size]
-            and float( city[3] ) < psize[size + 1] ):
-                # Add this city to the list
-                clist.append( getCity( city ) )
-    # Get a random element
-    i = random.randint( 0, len( clist ) - 1 )
-    # Return that element
-    return clist[i]
+            # Calculate size of city
+            csize = int( float( city[3] ) )
+            # Add city to any count
+            if csize > psize[0] and csize <= psize[4]: citySizeCount[0] += 1
+            # Is it a town?
+            if csize > psize[0] and csize <= psize[1]: citySizeCount[1] += 1
+            # Is it a small city?
+            if csize > psize[1] and csize <= psize[2]: citySizeCount[2] += 1
+            # Is it a medium city?
+            if csize > psize[2] and csize <= psize[3]: citySizeCount[3] += 1
+            # Is it a large city?
+            if csize > psize[3] and csize <= psize[4]: citySizeCount[4] += 1
+
+# Get a random city with a population greater than size
+# Large  City: size =  3 : Infinity >= population > 15,000
+# Medium City: size =  2 :   15,000 >= population >  5,000
+# Small  City: size =  1 :    5,000 >= population >  1,000
+#        Town: size =  0 :    1,000 >= population >      0
+#    Any City: size = -1 : Infinity >= population >      0
+def getCityRandom( size=-1 ):
+    # Make sure a correct size was given
+    if size < -1 or size > 3: raise IndexError( "invalid city size" )
+    # Add 1 to the size
+    size += 1
+    # List of population sizes
+    psize = [ 0, 1000, 5000, 15000, 999999999 ]
+    # Read a random number from the precalculated list
+    out = random.randint( 0, citySizeCount[size] - 1 )
+    # Read the cities data file
+    with open( "dat/worldcitiespop.txt" ) as fd:
+        # Iterate through each city
+        for fline in fd:
+            # Split on commas
+            city = fline.strip( ).split( "," )
+            # Calculate size of city
+            csize = int( float( city[3] ) )
+            # Add city to any count
+            if size == 0 and csize > psize[0] and csize <= psize[4]: out -= 1
+            # Is it a town?
+            if size == 1 and csize > psize[0] and csize <= psize[1]: out -= 1
+            # Is it a small city?
+            if size == 2 and csize > psize[1] and csize <= psize[2]: out -= 1
+            # Is it a medium city?
+            if size == 3 and csize > psize[2] and csize <= psize[3]: out -= 1
+            # Is it a large city?
+            if size == 4 and csize > psize[3] and csize <= psize[4]: out -= 1
+            # Return the city
+            if out <= 0: return getCity( fline )
+    raise IndexError( "unable to locate city" )
