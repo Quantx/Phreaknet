@@ -1087,6 +1087,7 @@ class Router( Host ):
         # Is this the router's local DCA?
         if dca == self.dca: return self
 	# Check if the ISP and Router partitions match
+        # This works because the last partition of a Router's DCA is always 0
         if dca.startswith( self.dca[:-1] ):
             # Since this is local, just resolve the netstat
             dhost = Host.find_id( self.netstat.get( dca, None ) )
@@ -1221,8 +1222,10 @@ class ISPRouter( Router ):
         # Is this the router's local DCA?
         if dca == self.dca: return self
         # Check if the ISP and Router partitions match
+        # This works because the last two partions of an ISP's DCA are always 0
         if dca.startswith( self.dca[:-3] ):
             # Is the DCA on this ISPRouter's router domain?
+            # This works because the last partition of an ISP's DCA is always 0
             if dca.startswith( self.dca[:-1] ):
                 # Since this is local, just resolve the netstat
                 dhost = Host.find_id( self.netstat.get( dca, None ) )
@@ -1235,8 +1238,11 @@ class ISPRouter( Router ):
                 # We're good, return the host
                 return dhost
             else:
+                # Compute router DCA address
+                rdca = dca.split( "." )
+                rdca = "%s.%s.0" % ( rdca[0], rdca[1] )
                 # We're looking for a router
-                dhost = Host.find_id( self.routetbl.get( dca[:-1] + "0", None ) )
+                dhost = Host.find_id( self.routetbl.get( rdca, None ) )
                 # Host not found
                 if dhost is None: return None
                 # Don't resolve host that is offline
