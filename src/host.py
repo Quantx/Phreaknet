@@ -13,7 +13,7 @@ import string
 import random
 import shutil
 import binascii
-import uuid
+from uuid import uuid4
 import traceback
 
 host_progs = [
@@ -33,6 +33,7 @@ host_progs = [
     "rm",
     "cp",
     "mv",
+    "arp",
     "adduser",
     "deluser",
     "addgroup",
@@ -130,7 +131,7 @@ class Host:
     # string  | defgate .... The ISP of this host (ignored if isisp is true)
     def __init__( self, name, citydata, defgate="" ):
         # The unique ID of this host
-        self.uid = str( uuid.uuid4( ) )
+        self.uid = str( uuid4( ) )
 
         ### Host info ###
         # Name of the host
@@ -340,7 +341,7 @@ class Host:
         # Program started, return the tuple
         return ( self.dca, proc.pid )
 
-    # Processes and Programs should use this as much as possible
+    # Host level resolution
     def resolve( self, dca ):
         # Can't do anything if we're offline
         if not self.poweron: return None
@@ -412,7 +413,7 @@ class Host:
                 # Catch all other errors
                 except Exception as e:
                     # Generate a uuid
-                    errid = str( uuid.uuid4( ) )
+                    errid = str( uuid4( ) )
                     # Log the report
                     with open( "err/" + errid + ".err", "w" ) as fd:
                         # Header for the report
@@ -1067,7 +1068,7 @@ class Router( Host ):
         # Next host dca for request
         self.ndca = 0
 
-    # Processes and Programs should use this as much as possible
+    # Router level DCA resolution
     def resolve( self, dca ):
         # Can't do anything if we're offline
         if not self.poweron: return None
@@ -1191,6 +1192,7 @@ class ISPRouter( Router ):
         # Next router class DCA
         self.nrdca = 1
 
+    # ISP level DCA Resolution
     def resolve( self, dca ):
         # Can't do anything if we're offline
         if not self.poweron: return None

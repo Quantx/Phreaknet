@@ -29,18 +29,23 @@ class Program:
     # Dynamically build the program table
     @classmethod
     def build_progtbl( cls ):
-        # Loop through every subclass of Program
+        cnt = 0
+        # Loop through every subclass
         for sub in cls.__subclasses__( ):
             # Get the file for this prog
-            fname = "dat/progs/" + sub.__name__.lower()
+            fname = "dat/progs/" + sub.__name__.lower( )
             # Make sure the corresponding file exists
             if os.path.isfile( fname ):
                 # Store this file's hash
                 sub.checksum = md5_check( fname )
                 # Add this program to the table
                 Program.progtbl.append( sub )
-            # Iterate through this program's subclasses
-            sub.build_progtbl( )
+                # Count number of programs built
+                cnt += 1
+            # Iterate through this program's subclasses and add total
+            cnt += sub.build_progtbl( )
+        # Return final count
+        return cnt
 
     # Get a program by name
     @staticmethod
@@ -976,7 +981,7 @@ class Who( Program ):
         pass
 
 # Delete a file or directory
-class Rm( Program ):
+class RM( Program ):
 
     def run( self ):
         # Did we get a file to delete?
@@ -1083,3 +1088,66 @@ class MV( Program ):
             self.error( "usage: mv <source> <destination>" )
         # We're done
         return self.kill
+
+# List all DCA addresses
+class Arp( Program ):
+
+    def run( self ):
+        # Make sure we even have a dca
+        if not self.host.dca:
+            self.error( "no DCA assigned" )
+            return self.kill
+        elif self.host.dca == "0.0.0":
+            self.error( "invalid DCA assigned" )
+            return self.kill
+        # Options
+        ropts = ""
+        # Decode options
+        for opt in self.params:
+            # Opts start with a dash
+            if opt.startswith( "-" ):
+                ropts += opt[1:]
+        # Store output
+        out = [ [ "Direct Connect Address", "Hostname" ] ]
+        # Do we want info on the routing table?
+        if "r" in ropts:
+            if hasattr( self.host, "routetbl" ):
+                # Read the routing table
+                for dca in self.host.routetbl:
+                    # Resolve this host
+                    dhost = self.host.resolve( dca )
+                    # Add to output
+                    out.append( [ dhost.dca, dhost.hostname ] )
+            else:
+                self.error( "host does not have a routing table" )
+                return self.kill
+        # Do we want info on the netstat?
+        elif "n" in ropts:
+            if hasattr( self.host, "netstat" ):
+                # Read the netstat
+                for dca in self.host.netstat:
+                    # Resolve this host
+                    dhost = self.host.resolve( dca )
+                    # Add to output
+                    out.append( [ dhost.dca, dhost.hostname ] )
+            else:
+                self.error( "host does not have a netstat" )
+                return self.kill
+        # We'll just print the network stack
+        else:
+            # Split the DCA up
+            dcas = self.host.dca.split( "." )
+            # ISP level stack
+            dhost = self.host.resolve( dcas[0] + ".0.0" )
+            # Add this host to the output
+            out.append( [ dhost.dca, dhost.hostname ] )
+            # Router level stack
+            if dcas[1] != "0":
+                # Resolve the router
+                dhost = self.host.resolve( "%s.%s.0" % ( dcas[0], dcas[1] ) )
+                # Add this host to the output
+                out.append( [ dhost.dca, dhost.hostname ] )
+            # Host level stack
+            if dcas[2] != "0": out.append( [ self.host.dca, self.host.hostname ] )
+        # Start the pager
+        return self.pager( format_cols( out ) )

@@ -99,7 +99,7 @@ class Account:
     # THIS IS A SLOW FUNCTION, use it sparingly
     def hash_pass( self, pwd ):
         # Make sure the request is reasonable
-        if len( pwd ) > 64: raise PassOverflow(pwd,len(pwd))
+        if len( pwd ) > 64: raise PassOverflow(len(pwd))
         # Password hashing function, with sha512
         return pbkdf2_hmac( 'sha512',
                             # Encode the password into utf-8

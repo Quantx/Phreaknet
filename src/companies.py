@@ -8,7 +8,7 @@
 
 from init import *
 
-import uuid
+from uuid import uuid4
 
 # A basic company
 class Company:
@@ -117,7 +117,7 @@ class Company:
 
     def __init__( self, name, geoloc=None ):
         # Generate a unique id for the company
-        self.uid = str( uuid.uuid4( ) )
+        self.uid = str( uuid4( ) )
         # Generate a random name
         self.name = name
         # The location of this company

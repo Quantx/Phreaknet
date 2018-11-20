@@ -12,9 +12,9 @@ from init import *
 # An homage to Forbin
 class Porthack( Program ):
 
-    def __init__( self, user, work, tty, size, origin, params=[] ):
-        # Pass parent args along
-        super( ).__init__( user, work, tty, size, origin, params )
+    def __init__( self, *args, **kwargs ):
+        # Call super
+        super( ).__init__( *args, **kwargs )
         # Stores the target host's DCA
         self.ph_host = ""
 

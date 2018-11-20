@@ -26,6 +26,10 @@ def main( ):
             # Make this directory
             os.makedirs( pdir )
 
+    # Build the program table
+    cnt = Program.build_progtbl( )
+    if cnt: xlog( "Built %s programs" % cnt )
+
     # Load all accounts from disk
     Account.load( )
     # Load all NPCs from disk
@@ -35,9 +39,6 @@ def main( ):
 
     # Generate all the companies
     Company.generate_companies( )
-
-    # Build the program table
-    Program.build_progtbl( )
 
     # Load all hosts from disk
     cnt = Host.load( )
