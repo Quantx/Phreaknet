@@ -87,7 +87,7 @@ class Program:
         # Additional Parameters
         self.params = params
         # Time started
-        self.started = time.time( )
+        self.alive = time.time( )
         # CPU time used
         self.ptime = 0
 

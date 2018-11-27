@@ -16,6 +16,7 @@ import binascii
 from uuid import uuid4
 import traceback
 
+# Programs to copy to the host
 host_progs = [
     "qash",
     "echo",
@@ -38,6 +39,11 @@ host_progs = [
     "deluser",
     "addgroup",
     "delgroup"
+]
+
+# Host programs to run on boot
+host_init = [
+
 ]
 
 # Direct Connect Address (DCA) Explained:
@@ -153,8 +159,6 @@ class Host:
 
         # When was this system created
         self.sysgen = time.time( )
-        # How long has this system been online
-        self.alive = time.time( )
 
         ### File System ###
         # Build the root directory
@@ -189,7 +193,15 @@ class Host:
         # Install operating system
         shutil.copy2( "dat/progs/systemx", "dir/" + self.uid + "/sys" )
         # Create permission file for the operating system
-        with open( "dir/" + self.uid + "/sys/.systemx.inode", "w" ) as fd: fd.write( "rwx------ root root" )
+        with open( "dir/" + self.uid + "/sys/.systemx.inode", "w" ) as fd: fd.write( "r-x------ root root" )
+        # Create the services file
+        with open( "dir/" + self.uid + "/sys/services.init", "w" ) as fd:
+            # Add all programs to initialize to
+            for prg in host_init:
+                # Write program to file
+                fd.write( "/bin/" + prg + "\n" )
+        # Generate the inode file for the service.init
+        with open( "dir/" + self.uid + "/sys/.services.init.inode", "w" ) as fd: fd.write( "rw-r--r-- root root" )
 
         # Import all the base progs into /bin
         self.import_progs( host_progs, "/bin" )
@@ -470,8 +482,6 @@ class Host:
                 self.dca = dhost.router_request_dca( self.uid )
             elif dhost:
                 self.dca = dhost.request_dca( self.uid )
-            # Reset the active timer
-            self.alive = time.time( )
             # Started up successfully
             return True
 
@@ -688,12 +698,20 @@ class Host:
         if append: mode = "a"
         # Concatinate arrays of strings
         if not isinstance( data, str ): data = "\n".join( data ) + "\n"
+        # Make sure we can access this file's directory
         # Make sure we have permission to access this file
-        if not self.path_priv( path, user, 1 ):
+        if not self.path_priv( os.path.dirname( path ), user, 1 ):
             raise PhreaknetOSError( "Permission denied" )
         # Make sure this is in fact a file
-        if not os.path.isfile( path ):
+        if os.path.isdir( path ):
             raise PhreaknetOSError( "Is a directory" )
+        elif os.path.isfile( path ):
+            # Check if the file exists and we have permission to write
+            if not self.path_priv( path, user, 1 ):
+                return PhreaknetOSError( "Permission denied" )
+        # File doesn't exist, create a new inode file for it
+        else:
+            with open( self.get_inode( path ), "w" ) as fd: fd.write( "rw-r--r-- %s %s" % ( user, user ) )
         # Open the file
         with open( path, mode ) as fd:
             # Write the data
@@ -1308,6 +1326,27 @@ class Systemx( Program ):
     def __init__( self ):
         # No need for params, since this program is never run by a user
         super( ).__init__( "root", "/", -1, (80, 24), None, [] )
+
+        # Set the starting function to os init
+        self.func = self.osinit
+
+    # Do operating system initialization
+    def osinit( self ):
+        # Create a system log
+        
+        # Load the services file
+        progs = self.host.read_lines( "/sys/services.init", "root" )
+        # Iterate through all the programs
+        for prg in progs:
+            break
+            # Attempt to run this program
+            pclass = self.host.exec_file( prg, "root" )
+            # Create the program instance
+            nprg = pclass( "root", "/", -1, (80, 24), None, [] )
+            # Run this program
+            self.host.start( nprg )
+        # Enter the operting system's main loop
+        return self.run
 
     # Just run in an infinite loop, put OS tasks here
     def run( self ):
