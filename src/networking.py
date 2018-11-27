@@ -99,7 +99,8 @@ class Server:
     # IP: The IP address to bind
     def __init__( self, dev=False, ip="" ):
         # Specify the port to host on
-        port = 23
+        # port = 23
+        port = 6969
         if dev:
             port = 6969
             devmode = True
