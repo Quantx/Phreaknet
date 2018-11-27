@@ -75,8 +75,10 @@ class Account:
         # The UID of this account's gateway
         self.gateway = ""
         # 0=Normal user, 1=Operator, 2=Admin
-        self.phreakpriv = 2
-
+        self.phreakpriv = 0
+        # Check if we're in dev mode
+        from networking import Server
+        if Server.devmode: self.phreakpriv = 2
         # Add us to the list of accounts
         Account.accounts.append( self )
 

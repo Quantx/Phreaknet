@@ -103,7 +103,7 @@ class Server:
         port = 6969
         if dev:
             port = 6969
-            devmode = True
+            Server.devmode = True
 
         self.addr = ( ip, port )
 
