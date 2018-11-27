@@ -121,7 +121,7 @@ class Server:
         # Listen for connections
         self.termserv.listen( 10 )
         # Print dev warning
-        xlog( "WARNING | PhreakNET is running in DEV mode | WARNING" )
+        if dev: xlog( "WARNING | PhreakNET is running in DEV mode | WARNING" )
         # Print the starting message
         xlog( "Terminal server started on port " + str( port ) )
 
