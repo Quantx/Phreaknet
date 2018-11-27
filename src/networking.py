@@ -91,6 +91,8 @@ with open( '../dat/phreaknet/manager.bnr' ) as bnr:
 # There should only be functions related to managing the conns here
 class Server:
 
+    devmode = False
+
     cur_client = None
 
     # DEV: FALSE = NORMAL_OPERATION, TRUE = DEV_MODE
@@ -98,10 +100,11 @@ class Server:
     def __init__( self, dev=False, ip="" ):
         # Specify the port to host on
         port = 23
-        if dev: port = 4200
+        if dev:
+            port = 6969
+            devmode = True
 
-        # Correct the phreaknet public IP
-        if ip: pnip = ip
+        self.addr = ( ip, port )
 
         # Array of clients
         self.clients = []
@@ -111,11 +114,13 @@ class Server:
         # Reuse dead sockets
         self.termserv.setsockopt( socket.SOL_SOCKET, socket.SO_REUSEADDR, 1 )
         # Bind the correct IP and Port
-        self.termserv.bind(( ip, port ))
+        self.termserv.bind( self.addr )
         # Set a timeout (server sockets dont support nonblocking)
         self.termserv.settimeout( 0.01 )
         # Listen for connections
         self.termserv.listen( 10 )
+        # Print dev warning
+        xlog( "WARNING | PhreakNET is running in DEV mode | WARNING" )
         # Print the starting message
         xlog( "Terminal server started on port " + str( port ) )
 

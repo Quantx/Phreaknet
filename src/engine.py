@@ -19,6 +19,20 @@ def main( ):
     # Set the working directory
     os.chdir( ".." )
 
+    opts = ""
+    bindip = ""
+
+    # Decode options
+    for opt in sys.argv:
+        if ( not bindip
+        and opt.count('.') == 3
+        and all( 0 <= int(num) < 256 for num in opt.rstrip( ).split('.') ) ):
+            # This opt is an ip address
+            bindip = opt
+        # Add options
+        elif len( opt ) == 2 and opt[0] == "-":
+            opts += opt[1]
+
     # Create all the dirs PhreakNET needs
     for pdir in phreakdirs:
         # Check if the directory doesn't exist
@@ -47,7 +61,7 @@ def main( ):
 
     # Init stuff here
     # Start the client server
-    gameserv = Server( True )
+    gameserv = Server( dev=("d" in opts), ip=bindip )
 
     # Load all accounts into the system
     Account.load( )
