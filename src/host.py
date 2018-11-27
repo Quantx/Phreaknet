@@ -186,6 +186,11 @@ class Host:
         os.makedirs( "dir/" + self.uid + "/usr/root" )
         with open( "dir/" + self.uid + "/usr/.root.inode", "w" ) as fd: fd.write( "rwx------ root root" )
 
+        # Install operating system
+        shutil.copy2( "dat/progs/systemx", "dir/" + self.uid + "/sys" )
+        # Create permission file for the operating system
+        with open( "dir/" + self.uid + "/sys/.systemx.inode", "w" ) as fd: fd.write( "rwx------ root root" )
+
         # Import all the base progs into /bin
         self.import_progs( host_progs, "/bin" )
 
@@ -447,8 +452,14 @@ class Host:
             # Reset npid and ntty
             self.npid = 0
             self.ntty = 64
-            # Start the systemx (operating system) process
-            self.start( Systemx( ) )
+            try:
+                # Get the operating system
+                osprg = self.exec_file( "/sys/systemx", "root" )
+                # Try to start the systemx (operating system) process
+                if not self.start( osprg( ) ): return False
+            except PhreaknetOSError as e:
+                # Unable to start operating system
+                return False
             # Configure safe mode
             self.safemode = safemode
             # Contact the default gateway and request a DCA

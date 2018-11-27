@@ -18,7 +18,7 @@ class PhreakShell( Qash ):
         super( ).__init__( user, work, tty, size, None, params=[] )
 
         # Disguise ourself as a normal shell
-        self.name = "shell"
+        self.name = "qash"
 
         # Use the @ symbol for a prompt
         self.sh_prompt = "@"
