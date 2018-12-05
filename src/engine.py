@@ -11,6 +11,7 @@ from init import *
 
 import sys
 import os
+from subprocess import call
 
 # The directories needed by phreaknet
 phreakdirs = [ "usr", "hst", "dir", "err", "per", "cmp" ]
@@ -39,6 +40,10 @@ def main( ):
         if not os.path.isdir( pdir ):
             # Make this directory
             os.makedirs( pdir )
+
+    # Unzip the population data if needed
+    if not os.path.isfile( "dat/worldcitiespop.csv" ):
+        call(["gunzip", "-k", "dat/worldcitiespop.csv.gz"])
 
     # Count the types of cities
     makeCitySizeCount( )

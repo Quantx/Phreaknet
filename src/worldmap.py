@@ -274,7 +274,7 @@ def getCity( city ):
 # string  | cname ..... the exact name of the city to search for
 def getCityName( country, region, cname ):
     # Read the cities data file
-    with open( "dat/worldcitiespop.txt" ) as fd:
+    with open( "dat/worldcitiespop.csv" ) as fd:
         # Iterate over each entry
         for fline in fd:
             # Split the data on commas
@@ -299,7 +299,7 @@ def makeCitySizeCount( ):
     # List of population sizes
     psize = [ 0, 1000, 5000, 15000, 999999999 ]
     # Read the cities data file
-    with open( "dat/worldcitiespop.txt" ) as fd:
+    with open( "dat/worldcitiespop.csv" ) as fd:
         # Iterate through each city
         for fline in fd:
             # Split on commas
@@ -333,7 +333,7 @@ def getCityRandom( size=-1 ):
     # Read a random number from the precalculated list
     out = random.randint( 0, citySizeCount[size] - 1 )
     # Read the cities data file
-    with open( "dat/worldcitiespop.txt" ) as fd:
+    with open( "dat/worldcitiespop.csv" ) as fd:
         # Iterate through each city
         for fline in fd:
             # Split on commas
