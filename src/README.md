@@ -15,3 +15,8 @@ To run PhreakNET on the live server run (any parameters given are passed to engi
 ```
 ./start.sh
 ```
+
+To connect to PhreakNET use Telnet and connect to the port specified:
+```
+telnet localhost 6969
+```
