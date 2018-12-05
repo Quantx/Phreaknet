@@ -67,6 +67,8 @@ class Account:
     def __init__( self, uname, pwd ):
         # Username and Password for this account
         self.username = uname
+        # Make sure the request is reasonable
+        if len( pwd ) < 8 or len( pwd ) > 64: raise PassOverflow( len( pwd ) )
         # Salts prevent rainbow table attacks
         self.passsalt = os.urandom( 64 )
         self.password = self.hash_pass( pwd )
@@ -95,13 +97,12 @@ class Account:
 
     # Check the password for this account
     def check_pass( self, pwd ):
+        # Evaluate the password
         return self.password == self.hash_pass( pwd )
 
     # Get a cryptographically secure hash of a password
     # THIS IS A SLOW FUNCTION, use it sparingly
     def hash_pass( self, pwd ):
-        # Make sure the request is reasonable
-        if len( pwd ) > 64: raise PassOverflow(len(pwd))
         # Password hashing function, with sha512
         return pbkdf2_hmac( 'sha512',
                             # Encode the password into utf-8

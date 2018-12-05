@@ -22,7 +22,7 @@ Once phreaknet is up and running and you've connected to it (see ```src/README.m
 
 First create an account and password by pressing "R" to register then entering your username / password
 
-Passwords are stored using 256bit encryption with a 16 byte random salt and 100,000 rounds of hashing
+Passwords are stored using 512bit encryption with a 64 byte random salt and 100,000 rounds of hashing
 
 Answer yes to the privacy agreement (i've yet to write this, but i'll get around to it)
 

@@ -465,12 +465,15 @@ class Client:
                         self.login_banner( "Unable to register, username already taken" )
                         break
                 else:
-                    # Create account and reset login data
-                    self.account = Account( self.ac_user, self.ac_pass )
-                    # Log the event
-                    xlog( "Registered successfully" )
-                    # This user cant have a gateway so ask him to make one
-                    self.print_banner( legal_banner, legal_pos )
+                    try:
+                        # Create account and reset login data
+                        self.account = Account( self.ac_user, self.ac_pass )
+                        # Log the event
+                        xlog( "Registered successfully" )
+                        # This user cant have a gateway so ask him to make one
+                        self.print_banner( legal_banner, legal_pos )
+                    except PassOverflow as e:
+                        self.login_banner( "Password too short" )
             else:
                 # User did not agree to the terms
                 self.login_banner( "New account registration aborted" )
