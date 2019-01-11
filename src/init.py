@@ -6,6 +6,10 @@
 # Handles imports and dependancies #
 ####################################
 
+# Include the redist directory
+import sys
+sys.path.append( "../inc/"
+
 #####                            #####
 ###    IMPORT INIT IN ALL FILES    ###
 #####                            #####
