@@ -14,6 +14,9 @@ sys.path.append( "../inc/"
 ###    IMPORT INIT IN ALL FILES    ###
 #####                            #####
 
+import sys
+sys.path.append( "../inc/" )
+
 from formating import *
 from exceptions import *
 from account import *
