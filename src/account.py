@@ -68,7 +68,7 @@ class Account:
         # Username and Password for this account
         self.username = uname
         # Make sure the request is reasonable
-        if len( pwd ) < 8 or len( pwd ) > 64: raise PassOverflow( len( pwd ) )
+        if len( pwd ) < 8 or len( pwd ) > 64: raise PhreaknetPassOverflow( len( pwd ) )
         # Salts prevent rainbow table attacks
         self.passsalt = os.urandom( 64 )
         self.password = self.hash_pass( pwd )

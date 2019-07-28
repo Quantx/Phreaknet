@@ -472,7 +472,7 @@ class Client:
                         xlog( "Registered successfully" )
                         # This user cant have a gateway so ask him to make one
                         self.print_banner( legal_banner, legal_pos )
-                    except PassOverflow as e:
+                    except  PhreaknetPassOverflow as e:
                         self.login_banner( "Password too short" )
             else:
                 # User did not agree to the terms
